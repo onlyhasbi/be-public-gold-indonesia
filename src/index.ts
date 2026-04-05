@@ -16,23 +16,8 @@ try {
   console.error("Failed to initialize database:", error);
 }
 
-const app = new Elysia()
-  .use(cors({
-    origin: (process.env.CORS_ORIGIN === "*" || !process.env.CORS_ORIGIN)
-      ? true
-      : process.env.CORS_ORIGIN.split(",").map(o => o.trim()),
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Accept",
-      "X-Requested-With",
-      "Origin",
-      "Referer",
-      "Accept-Language"
-    ],
-    credentials: true
-  }))
+const app = new Elysia({ prefix: "/api" })
+  .use(cors())
   .use(swagger({
     documentation: {
       info: {
