@@ -5,6 +5,11 @@ import { createClient } from "@libsql/client";
 const url = Bun.env.TURSO_DATABASE_URL || "file:local.db";
 const authToken = Bun.env.TURSO_AUTH_TOKEN;
 
+// Validation for production environment
+if (Bun.env.NODE_ENV === "production" && !Bun.env.TURSO_DATABASE_URL) {
+  console.warn("⚠️ TURSO_DATABASE_URL is not set in production. Falling back to local file (which may fail in Serverless).");
+}
+
 export const db = createClient({
   url,
   authToken,
