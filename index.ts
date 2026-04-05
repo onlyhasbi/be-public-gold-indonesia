@@ -1,12 +1,12 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { authRoutes } from "./routes/auth";
-import { adminRoutes } from "./routes/admin";
-import { overviewRoutes } from "./routes/overview";
-import { settingsRoutes } from "./routes/settings";
-import { publicRoutes } from "./routes/public";
-import { setupDatabase } from "./db/db";
-import { securityHeaders } from "./middleware/securityHeaders";
+import { authRoutes } from "./api/routes/auth";
+import { adminRoutes } from "./api/routes/admin";
+import { overviewRoutes } from "./api/routes/overview";
+import { settingsRoutes } from "./api/routes/settings";
+import { publicRoutes } from "./api/routes/public";
+import { setupDatabase } from "./api/db/db";
+import { securityHeaders } from "./api/middleware/securityHeaders";
 import { swagger } from "@elysiajs/swagger";
 
 // Initialize database with basic error handling to prevent startup crashes
