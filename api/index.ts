@@ -1,12 +1,12 @@
 import { Elysia } from "elysia";
 import { cors } from "@elysiajs/cors";
-import { authRoutes } from "./api/routes/auth";
-import { adminRoutes } from "./api/routes/admin";
-import { overviewRoutes } from "./api/routes/overview";
-import { settingsRoutes } from "./api/routes/settings";
-import { publicRoutes } from "./api/routes/public";
-import { setupDatabase } from "./api/db/db";
-import { securityHeaders } from "./api/middleware/securityHeaders";
+import { authRoutes } from "./routes/auth";
+import { adminRoutes } from "./routes/admin";
+import { overviewRoutes } from "./routes/overview";
+import { settingsRoutes } from "./routes/settings";
+import { publicRoutes } from "./routes/public";
+import { setupDatabase } from "./db/db";
+import { securityHeaders } from "./middleware/securityHeaders";
 import { swagger } from "@elysiajs/swagger";
 
 // Initialize database with basic error handling to prevent startup crashes
@@ -18,14 +18,14 @@ try {
 
 const app = new Elysia()
   .use(cors({
-    origin: (Bun.env.CORS_ORIGIN === "*" || !Bun.env.CORS_ORIGIN) 
-      ? true 
+    origin: (Bun.env.CORS_ORIGIN === "*" || !Bun.env.CORS_ORIGIN)
+      ? true
       : Bun.env.CORS_ORIGIN.split(",").map(o => o.trim()),
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
-      "Content-Type", 
-      "Authorization", 
-      "Accept", 
+      "Content-Type",
+      "Authorization",
+      "Accept",
       "X-Requested-With",
       "Origin",
       "Referer",
@@ -47,7 +47,7 @@ const app = new Elysia()
   // Global error handler — never leak internal errors to clients
   .onError(({ code, set, error }) => {
     console.error(`Error [${code}]:`, error);
-    
+
     if (code === "VALIDATION") {
       set.status = 400;
       return { success: false, message: "Data yang dikirim tidak valid" };
@@ -56,7 +56,7 @@ const app = new Elysia()
       set.status = 404;
       return { success: false, message: "Endpoint tidak ditemukan" };
     }
-    
+
     set.status = 500;
     return { success: false, message: "Terjadi kesalahan pada server" };
   })
