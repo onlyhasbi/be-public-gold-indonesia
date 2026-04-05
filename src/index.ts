@@ -26,11 +26,26 @@ const app = new Elysia()
       },
     },
   }))
-  // CORS — restrict origins in production
+  // CORS — support multiple origins from environment variables
   .use(cors({ 
-    origin: Bun.env.CORS_ORIGIN || "*",
+    origin: (request) => {
+      const origin = request.headers.get("origin");
+      const allowedOrigins = Bun.env.CORS_ORIGIN?.split(",").map(o => o.trim()) || ["*"];
+      
+      // If "*" is in the allowed list, allow all origins
+      if (allowedOrigins.includes("*")) return true;
+      
+      // If the incoming origin matches exactly, allow it
+      return !!origin && allowedOrigins.includes(origin);
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"]
+    allowedHeaders: [
+      "Content-Type", 
+      "Authorization", 
+      "Accept", 
+      "X-Requested-With"
+    ],
+    credentials: true
   }))
   // Security headers (XSS, clickjacking, MIME sniffing protection)
   .use(securityHeaders)
