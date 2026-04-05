@@ -17,6 +17,22 @@ try {
 }
 
 const app = new Elysia()
+  .use(cors({
+    origin: (Bun.env.CORS_ORIGIN === "*" || !Bun.env.CORS_ORIGIN) 
+      ? true 
+      : Bun.env.CORS_ORIGIN.split(",").map(o => o.trim()),
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type", 
+      "Authorization", 
+      "Accept", 
+      "X-Requested-With",
+      "Origin",
+      "Referer",
+      "Accept-Language"
+    ],
+    credentials: true
+  }))
   .use(swagger({
     documentation: {
       info: {
@@ -25,27 +41,6 @@ const app = new Elysia()
         description: "Dokumentasi API untuk PGBO Portal Management",
       },
     },
-  }))
-  // CORS — support multiple origins from environment variables
-  .use(cors({ 
-    origin: (request) => {
-      const origin = request.headers.get("origin");
-      const allowedOrigins = Bun.env.CORS_ORIGIN?.split(",").map(o => o.trim()) || ["*"];
-      
-      // If "*" is in the allowed list, allow all origins
-      if (allowedOrigins.includes("*")) return true;
-      
-      // If the incoming origin matches exactly, allow it
-      return !!origin && allowedOrigins.includes(origin);
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type", 
-      "Authorization", 
-      "Accept", 
-      "X-Requested-With"
-    ],
-    credentials: true
   }))
   // Security headers (XSS, clickjacking, MIME sniffing protection)
   .use(securityHeaders)
