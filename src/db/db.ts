@@ -97,5 +97,31 @@ export const setupDatabase = async () => {
     )
   `);
 
+  // Create System Settings table
+  await db.execute(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Initialize default settings if not exists
+  const checkSecret = await db.execute("SELECT value FROM system_settings WHERE key = 'portal_secret_code'");
+  if (checkSecret.rows.length === 0) {
+    await db.execute({
+      sql: "INSERT INTO system_settings (key, value) VALUES ('portal_secret_code', ?)",
+      args: [Bun.env.SECRET_CODE || "REDACTED_SECRET_CODE"]
+    });
+  }
+  
+  const checkRotation = await db.execute("SELECT value FROM system_settings WHERE key = 'last_rotation_date'");
+  if (checkRotation.rows.length === 0) {
+    await db.execute({
+      sql: "INSERT INTO system_settings (key, value) VALUES ('last_rotation_date', ?)",
+      args: [new Date().toISOString().split('T')[0]]
+    });
+  }
+
   console.log("Database tables verified!");
 };

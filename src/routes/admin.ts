@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { sanitizePGCode, sanitizePageId, validateImageFile } from "../utils/sanitize";
 import cloudinary from "../config/cloudinary";
 import { processImage } from "../utils/imageProcessor";
+import { getSetting, updateSetting } from "../utils/settings";
 
 export const adminRoutes = new Elysia({ prefix: "/admin" })
   .use(
@@ -341,4 +342,31 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         foto_profil: t.Optional(t.File({ maxSize: "2m" })),
       }),
     }
-  );
+  )
+  .get("/settings/secret-code", async ({ set }) => {
+    try {
+      const code = await getSetting("portal_secret_code");
+      return { success: true, data: { code } };
+    } catch (error) {
+      set.status = 500;
+      return { success: false, message: "Gagal mengambil kode rahasia" };
+    }
+  })
+  .patch("/settings/secret-code", async ({ body, set }) => {
+    try {
+      const { code } = body;
+      if (!code || code.trim().length < 3) {
+        set.status = 400;
+        return { success: false, message: "Kode rahasia minimal 3 karakter" };
+      }
+      await updateSetting("portal_secret_code", code.trim());
+      return { success: true, message: "Kode rahasia berhasil diperbarui" };
+    } catch (error) {
+      set.status = 500;
+      return { success: false, message: "Gagal memperbarui kode rahasia" };
+    }
+  }, {
+    body: t.Object({
+      code: t.String()
+    })
+  });
