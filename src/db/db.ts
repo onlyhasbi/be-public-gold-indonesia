@@ -46,18 +46,16 @@ export const setupDatabase = async () => {
   `);
 
   // Migration: add is_active column if it doesn't exist yet
+  // Migration: add google auth columns
   try {
-    await db.execute(`ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1`);
-  } catch (_e) {
-    // Column already exists — ignore
-  }
-
-  // Migration: add nama_panggilan column if it doesn't exist yet
+    await db.execute(`ALTER TABLE users ADD COLUMN google_refresh_token TEXT`);
+  } catch (_e) {}
   try {
-    await db.execute(`ALTER TABLE users ADD COLUMN nama_panggilan TEXT`);
-  } catch (_e) {
-    // Column already exists — ignore
-  }
+    await db.execute(`ALTER TABLE users ADD COLUMN google_access_token TEXT`);
+  } catch (_e) {}
+  try {
+    await db.execute(`ALTER TABLE users ADD COLUMN google_token_expiry INTEGER`);
+  } catch (_e) {}
 
   // Migration: add user_id column to leads if it doesn't exist yet
   try {

@@ -3,6 +3,7 @@ import { db } from "../db/db";
 import { rateLimit } from "../middleware/rateLimit";
 import { randomUUID } from "node:crypto";
 import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
+import { createGoogleContact } from "../utils/google_utils";
 
 export const publicRoutes = new Elysia({ prefix: "/public" })
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
@@ -99,5 +100,46 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
   }, {
     body: t.Object({
       code: t.String()
+    })
+  })
+  .post("/register-track", async ({ body, set }) => {
+    try {
+      const { pageid, nama, branch, no_telpon } = body;
+      
+      // Get agent internal ID based on pageid
+      const agentRes = await db.execute({
+        sql: `SELECT id FROM users WHERE role = 'pgbo' AND pageid = ? AND is_active = 1`,
+        args: [pageid],
+      });
+
+      if (agentRes.rows.length === 0) {
+        set.status = 404;
+        return { success: false, message: "Agent tidak ditemukan" };
+      }
+
+      const agentId = agentRes.rows[0].id as string;
+      const id = randomUUID();
+
+      await db.execute({
+        sql: `INSERT INTO leads (id, user_id, nama, branch, no_telpon) VALUES (?, ?, ?, ?, ?)`,
+        args: [id, agentId, nama, branch, no_telpon],
+      });
+
+      // Async sync to Google Contacts (if active)
+      createGoogleContact(agentId, { nama, branch, no_telpon }).catch(err => {
+        console.error("Delayed Google Sync Error:", err);
+      });
+
+      return { success: true, message: "Lead tracked successfully" };
+    } catch (error: any) {
+      set.status = 500;
+      return { success: false, message: "Server error" };
+    }
+  }, {
+    body: t.Object({
+      pageid: t.String(),
+      nama: t.String(),
+      branch: t.String(),
+      no_telpon: t.String()
     })
   });
