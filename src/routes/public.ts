@@ -40,7 +40,23 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
   })
   .post("/analytics", async ({ body, set }) => {
     try {
-      const { pageid, event } = body;
+      // Handle both JSON body (axios) and text/plain body (sendBeacon)
+      let data: any;
+      if (typeof body === "string") {
+        try { data = JSON.parse(body); } catch { 
+          set.status = 400;
+          return { success: false, message: "Invalid body" };
+        }
+      } else {
+        data = body;
+      }
+
+      const pageid = data?.pageid;
+      const event = data?.event;
+      if (!pageid || !event || typeof pageid !== "string" || typeof event !== "string") {
+        set.status = 400;
+        return { success: false, message: "Missing pageid or event" };
+      }
       
       // Get agent internal ID based on pageid
       const agentRes = await db.execute({
@@ -63,14 +79,10 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
 
       return { success: true };
     } catch (error: any) {
+      console.error("[Analytics Error]", error);
       set.status = 500;
-      return { success: false, message: "Server error" };
+      return { success: false, message: error.message };
     }
-  }, {
-    body: t.Object({
-      pageid: t.String(),
-      event: t.String()
-    })
   })
   .post("/portal/verify", async ({ body, set }) => {
     try {
@@ -132,8 +144,9 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
 
       return { success: true, message: "Lead tracked successfully" };
     } catch (error: any) {
+      console.error("[Register Track Error]", error);
       set.status = 500;
-      return { success: false, message: "Server error" };
+      return { success: false, message: error.message };
     }
   }, {
     body: t.Object({
