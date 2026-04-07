@@ -103,7 +103,7 @@ export const createGoogleContact = async (userId: string, leadData: { nama: stri
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                names: [{ givenName: leadData.nama }],
+                names: [{ givenName: `Cust. ${leadData.nama} ${leadData.branch}` }],
                 phoneNumbers: [{ value: leadData.no_telpon, type: "mobile" }],
                 organizations: [{ name: `Public Gold (${leadData.branch})`, type: "work" }],
                 notes: `Pendaftar via Agent Portal - Branch: ${leadData.branch}`,

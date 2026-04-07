@@ -64,6 +64,13 @@ export const setupDatabase = async () => {
     // Column already exists or table doesn't exist yet — ignore
   }
 
+  // Migration: add exported_at column to leads for tracking Google Contacts sync
+  try {
+    await db.execute(`ALTER TABLE leads ADD COLUMN exported_at DATETIME`);
+  } catch (_e) {
+    // Column already exists — ignore
+  }
+
   // Migration: add user_id column to analytics if it doesn't exist yet
   try {
     await db.execute(`ALTER TABLE analytics ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);

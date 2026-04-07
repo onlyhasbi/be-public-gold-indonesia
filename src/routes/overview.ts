@@ -1,7 +1,8 @@
-import { Elysia } from "elysia";
+import { Elysia, t } from "elysia";
 import { db } from "../db/db";
 import { jwt } from "@elysiajs/jwt";
 import { rateLimit } from "../middleware/rateLimit";
+import { createGoogleContact } from "../utils/google_utils";
 
 export const overviewRoutes = new Elysia({ prefix: "/overview" })
   .use(
@@ -63,9 +64,9 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
         args: [agentId],
       });
 
-      // Get top 10 latest registrants
+      // Get ALL registrants (no limit) with id and exported_at
       const leadsRes = await db.execute({
-        sql: `SELECT nama, branch, no_telpon, created_at FROM leads WHERE user_id = ? ORDER BY created_at DESC LIMIT 10`,
+        sql: `SELECT id, nama, branch, no_telpon, exported_at, created_at FROM leads WHERE user_id = ? ORDER BY created_at DESC`,
         args: [agentId],
       });
 
@@ -81,5 +82,122 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
     } catch (error: any) {
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };
+    }
+  })
+  .post("/leads/sync-contacts", async ({ body, user, set }) => {
+    try {
+      const { ids } = body;
+      if (!ids || ids.length === 0) {
+        set.status = 400;
+        return { success: false, message: "Tidak ada kontak yang dipilih" };
+      }
+
+      const pgcode = user.sub;
+
+      // Get agent id
+      const agentRes = await db.execute({
+        sql: `SELECT id FROM users WHERE pgcode = ?`,
+        args: [pgcode],
+      });
+
+      if (agentRes.rows.length === 0) {
+        set.status = 404;
+        return { success: false, message: "Agent tidak ditemukan" };
+      }
+
+      const agentId = agentRes.rows[0].id as string;
+
+      // Check if Google is connected
+      const userRes = await db.execute({
+        sql: `SELECT google_refresh_token FROM users WHERE id = ?`,
+        args: [agentId],
+      });
+
+      if (!userRes.rows[0]?.google_refresh_token) {
+        set.status = 400;
+        return { success: false, message: "Akun Google belum terhubung. Silakan hubungkan di halaman Pengaturan." };
+      }
+
+      // Fetch leads data for the given ids
+      const placeholders = ids.map(() => "?").join(", ");
+      const leadsRes = await db.execute({
+        sql: `SELECT id, nama, branch, no_telpon FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
+        args: [agentId, ...ids],
+      });
+
+      if (leadsRes.rows.length === 0) {
+        set.status = 404;
+        return { success: false, message: "Tidak ada data pendaftar yang ditemukan" };
+      }
+
+      // Sync each contact to Google
+      let syncedCount = 0;
+      const errors: string[] = [];
+
+      for (const lead of leadsRes.rows) {
+        try {
+          await createGoogleContact(agentId, {
+            nama: lead.nama as string,
+            branch: lead.branch as string,
+            no_telpon: lead.no_telpon as string,
+          });
+
+          // Mark as exported
+          await db.execute({
+            sql: `UPDATE leads SET exported_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            args: [lead.id],
+          });
+
+          syncedCount++;
+        } catch (err: any) {
+          errors.push(`${lead.nama}: ${err.message}`);
+        }
+      }
+
+      return {
+        success: true,
+        message: `${syncedCount} kontak berhasil disinkronkan ke Google Contacts`,
+        data: { synced: syncedCount, failed: errors.length, errors },
+      };
+    } catch (error: any) {
+      console.error("### SYNC CONTACTS ERROR:", error);
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan saat sinkronisasi kontak" };
+    }
+  }, {
+    body: t.Object({
+      ids: t.Array(t.String())
+    })
+  })
+  .delete("/leads/:id", async ({ params, user, set }) => {
+    try {
+      const pgcode = user.sub;
+      const agentRes = await db.execute({
+        sql: `SELECT id FROM users WHERE pgcode = ?`,
+        args: [pgcode],
+      });
+
+      if (agentRes.rows.length === 0) {
+        set.status = 404;
+        return { success: false, message: "Agent tidak ditemukan" };
+      }
+
+      const agentId = agentRes.rows[0].id as string;
+
+      const result = await db.execute({
+        sql: `DELETE FROM leads WHERE id = ? AND user_id = ?`,
+        args: [params.id, agentId],
+      });
+
+      if (result.rowsAffected === 0) {
+        set.status = 404;
+        return { success: false, message: "Data pendaftar tidak ditemukan" };
+      }
+
+      return { success: true, message: "Pendaftar berhasil dihapus" };
+    } catch (error: any) {
+      console.error("### DELETE LEAD ERROR:", error);
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan saat menghapus data" };
     }
   });

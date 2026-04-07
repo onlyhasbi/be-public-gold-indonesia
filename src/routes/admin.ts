@@ -369,4 +369,88 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     body: t.Object({
       code: t.String()
     })
+  })
+  .post("/pgbo/bulk-delete", async ({ body, set }) => {
+    try {
+      const { ids } = body;
+      if (!ids || ids.length === 0) {
+        set.status = 400;
+        return { success: false, message: "Tidak ada ID yang dipilih" };
+      }
+
+      // For each id, delete leads, analytics, cloudinary photo, then user
+      let deletedCount = 0;
+      for (const id of ids) {
+        // Fetch photo URL
+        const userRes = await db.execute({
+          sql: `SELECT foto_profil_url FROM users WHERE id = ? AND role = 'pgbo'`,
+          args: [id],
+        });
+
+        const photoUrl = userRes.rows[0]?.foto_profil_url as string | null;
+        if (photoUrl && photoUrl.includes("cloudinary")) {
+          try {
+            const parts = photoUrl.split("/");
+            const folder = parts[parts.length - 2];
+            const fileWithExt = parts[parts.length - 1];
+            const publicId = `${folder}/${fileWithExt.split(".")[0]}`;
+            await cloudinary.uploader.destroy(publicId);
+          } catch (cloudErr) {
+            console.warn("Cloudinary cleanup failed:", cloudErr);
+          }
+        }
+
+        const results = await db.batch([
+          { sql: `DELETE FROM leads WHERE user_id = ?`, args: [id] },
+          { sql: `DELETE FROM analytics WHERE user_id = ?`, args: [id] },
+          { sql: `DELETE FROM users WHERE id = ? AND role = 'pgbo'`, args: [id] },
+        ]);
+
+        if (results[2].rowsAffected > 0) deletedCount++;
+      }
+
+      return {
+        success: true,
+        message: `${deletedCount} PGBO berhasil dihapus`,
+      };
+    } catch (error: any) {
+      console.error("### BULK DELETE ERROR:", error);
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan saat menghapus data" };
+    }
+  }, {
+    body: t.Object({
+      ids: t.Array(t.String())
+    })
+  })
+  .patch("/pgbo/bulk-toggle", async ({ body, set }) => {
+    try {
+      const { ids, active } = body;
+      if (!ids || ids.length === 0) {
+        set.status = 400;
+        return { success: false, message: "Tidak ada ID yang dipilih" };
+      }
+
+      const newStatus = active ? 1 : 0;
+      const statements = ids.map((id: string) => ({
+        sql: `UPDATE users SET is_active = ? WHERE id = ? AND role = 'pgbo'`,
+        args: [newStatus, id],
+      }));
+
+      await db.batch(statements);
+
+      return {
+        success: true,
+        message: `${ids.length} PGBO berhasil ${active ? "diaktifkan" : "dinonaktifkan"}`,
+      };
+    } catch (error: any) {
+      console.error("### BULK TOGGLE ERROR:", error);
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan saat mengubah status" };
+    }
+  }, {
+    body: t.Object({
+      ids: t.Array(t.String()),
+      active: t.Boolean()
+    })
   });
