@@ -38,6 +38,64 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
   })
+  .get("/sitemap.xml", async ({ set }) => {
+    try {
+      const result = await db.execute({
+        sql: `SELECT pageid FROM users WHERE role = 'pgbo' AND is_active = 1`,
+        args: [],
+      });
+
+      const pages = result.rows;
+      const baseUrl = "https://mypublicgold.id";
+
+      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+      xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+      pages.forEach((row: any) => {
+        xml += `  <url>\n`;
+        xml += `    <loc>${baseUrl}/${row.pageid}</loc>\n`;
+        xml += `    <changefreq>weekly</changefreq>\n`;
+        xml += `    <priority>0.7</priority>\n`;
+        xml += `  </url>\n`;
+      });
+
+      xml += `</urlset>`;
+
+      set.headers["Content-Type"] = "application/xml";
+      return xml;
+    } catch (error) {
+      set.status = 500;
+      return "Error generating sitemap";
+    }
+  })
+  .get("/random", async ({ set }) => {
+    try {
+      const result = await db.execute({
+        sql: `
+          SELECT 
+            nama_lengkap, nama_panggilan, pageid, foto_profil_url, no_telpon
+          FROM users 
+          WHERE role = 'pgbo' AND is_active = 1
+          ORDER BY RANDOM()
+          LIMIT 1
+        `,
+        args: [],
+      });
+
+      if (result.rows.length === 0) {
+        set.status = 404;
+        return { success: false, message: "No active PGBO found" };
+      }
+
+      return {
+        success: true,
+        data: result.rows[0],
+      };
+    } catch (error) {
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan pada server" };
+    }
+  })
   .post("/analytics", async ({ body, set }) => {
     try {
       // Handle both JSON body (axios) and text/plain body (sendBeacon)
