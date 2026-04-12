@@ -182,4 +182,54 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
         sosmed_tiktok: t.Optional(t.String({ maxLength: 500 })),
       }),
     }
+  )
+  .patch(
+    "/password",
+    async ({ user, body, set }) => {
+      try {
+        const pgcode = user.sub;
+        const { katasandi_lama, katasandi_baru } = body;
+
+        // Fetch user password hash
+        const userRes = await db.execute({
+          sql: `SELECT katasandi_hash FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [pgcode],
+        });
+
+        if (userRes.rows.length === 0) {
+          set.status = 404;
+          return { success: false, message: "Agent tidak ditemukan" };
+        }
+
+        const userRecord = userRes.rows[0];
+        const isMatch = await Bun.password.verify(katasandi_lama, userRecord.katasandi_hash as string);
+
+        if (!isMatch) {
+          set.status = 401;
+          return { success: false, message: "Kata sandi lama salah" };
+        }
+
+        if (katasandi_baru.length < 6) {
+          set.status = 400;
+          return { success: false, message: "Kata sandi baru minimal 6 karakter" };
+        }
+
+        const newHash = await Bun.password.hash(katasandi_baru);
+        await db.execute({
+          sql: `UPDATE users SET katasandi_hash = ? WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [newHash, pgcode],
+        });
+
+        return { success: true, message: "Kata sandi berhasil diperbarui" };
+      } catch (error: any) {
+        set.status = 500;
+        return { success: false, message: "Server error" };
+      }
+    },
+    {
+      body: t.Object({
+        katasandi_lama: t.String(),
+        katasandi_baru: t.String({ minLength: 6 }),
+      }),
+    }
   );
