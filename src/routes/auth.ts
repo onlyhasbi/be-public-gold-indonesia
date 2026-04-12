@@ -170,8 +170,9 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         }
 
         // Sign token sub with the matched identifier
+        // For Dealers (pgbo), we strictly use pgcode as sub to avoid identity mismatch
         const token = await jwt.sign({ 
-          sub: user.email ? user.email : user.pgcode, 
+          sub: user.role === 'pgbo' ? user.pgcode : (user.email ? user.email : user.pgcode), 
           role: user.role 
         });
 

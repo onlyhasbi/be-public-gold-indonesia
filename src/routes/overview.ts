@@ -39,7 +39,7 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
 
       // Lookup agent by pgcode to get the internal id for FK queries
       const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE pgcode = ?`,
+        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
         args: [pgcode],
       });
 
@@ -96,7 +96,7 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
 
       // Get agent id
       const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE pgcode = ?`,
+        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
         args: [pgcode],
       });
 
@@ -173,7 +173,7 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
     try {
       const pgcode = user.sub;
       const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE pgcode = ?`,
+        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
         args: [pgcode],
       });
 

@@ -67,7 +67,7 @@ export const googleRoutes = new Elysia({ prefix: "/google" })
         // We need pgcode or email from JWT to find internal user
         const pgcode = user.sub as string;
         const agentRes = await db.execute({
-            sql: `SELECT id FROM users WHERE pgcode = ?`,
+            sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
             args: [pgcode],
         });
 
@@ -113,7 +113,7 @@ export const googleRoutes = new Elysia({ prefix: "/google" })
 
     try {
         const pgcode = user.sub as string;
-        const result = await db.execute("SELECT google_refresh_token FROM users WHERE pgcode = ?", [pgcode]);
+        const result = await db.execute("SELECT google_refresh_token FROM users WHERE UPPER(pgcode) = UPPER(?)", [pgcode]);
 
         const isConnected = result.rows.length > 0 && !!result.rows[0].google_refresh_token;
 
@@ -131,7 +131,7 @@ export const googleRoutes = new Elysia({ prefix: "/google" })
 
     try {
         const pgcode = user.sub as string;
-        await db.execute("UPDATE users SET google_access_token = NULL, google_refresh_token = NULL, google_token_expiry = NULL WHERE pgcode = ?", [pgcode]);
+        await db.execute("UPDATE users SET google_access_token = NULL, google_refresh_token = NULL, google_token_expiry = NULL WHERE UPPER(pgcode) = UPPER(?)", [pgcode]);
 
         return { success: true, message: "Google account disconnected" };
     } catch (error) {

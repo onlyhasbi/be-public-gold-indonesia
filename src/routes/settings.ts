@@ -45,7 +45,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       const pgcode = user.sub;
 
       const res = await db.execute({
-        sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE pgcode = ?`,
+        sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE UPPER(pgcode) = UPPER(?)`,
         args: [pgcode],
       });
 
@@ -142,7 +142,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               sosmed_facebook = COALESCE(?, sosmed_facebook),
               sosmed_instagram = COALESCE(?, sosmed_instagram),
               sosmed_tiktok = COALESCE(?, sosmed_tiktok)
-            WHERE pgcode = ?
+            WHERE UPPER(pgcode) = UPPER(?)
           `,
           args: [
             photoUrl || null,
