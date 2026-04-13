@@ -3,6 +3,7 @@ import { db } from "../db/db";
 import { jwt } from "@elysiajs/jwt";
 import { rateLimit } from "../middleware/rateLimit";
 import { createGoogleContact } from "../utils/google_utils";
+import { escapeFts } from "../utils/sanitize";
 
 export const overviewRoutes = new Elysia({ prefix: "/overview" })
   .use(
@@ -33,8 +34,9 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
       return { success: false, message: "Akses ditolak" };
     }
   })
-  .get("/", async ({ user, set }) => {
+  .get("/", async ({ query, user, set }) => {
     try {
+      const search = query.search as string | undefined;
       const pgcode = user.sub;
 
       // Lookup agent by pgcode to get the internal id for FK queries
@@ -65,9 +67,26 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
       });
 
       // Get ALL registrants (no limit) with id and exported_at
+      let leadsSql = `SELECT l.id, l.nama, l.branch, l.no_telpon, l.exported_at, l.created_at FROM leads l`;
+      const leadsArgs: any[] = [agentId];
+
+      if (search) {
+        const safeSearch = escapeFts(search);
+        if (safeSearch) {
+          leadsSql += ` JOIN leads_fts fts ON l.id = fts.id WHERE l.user_id = ? AND leads_fts MATCH ?`;
+          leadsArgs.push(safeSearch);
+        } else {
+          leadsSql += ` WHERE l.user_id = ?`;
+        }
+      } else {
+        leadsSql += ` WHERE l.user_id = ?`;
+      }
+
+      leadsSql += ` ORDER BY l.created_at DESC`;
+
       const leadsRes = await db.execute({
-        sql: `SELECT id, nama, branch, no_telpon, exported_at, created_at FROM leads WHERE user_id = ? ORDER BY created_at DESC`,
-        args: [agentId],
+        sql: leadsSql,
+        args: leadsArgs,
       });
 
       return {

@@ -3,7 +3,7 @@ import { db } from "../db/db";
 import { jwt } from "@elysiajs/jwt";
 import { rateLimit } from "../middleware/rateLimit";
 import { randomUUID } from "node:crypto";
-import { sanitizePGCode, sanitizePageId, validateImageFile } from "../utils/sanitize";
+import { sanitizePGCode, sanitizePageId, validateImageFile, escapeFts } from "../utils/sanitize";
 import cloudinary from "../config/cloudinary";
 import { processImage } from "../utils/imageProcessor";
 import { getSetting, updateSetting } from "../utils/settings";
@@ -32,22 +32,39 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
       return { success: false, message: "Anda bukan admin" };
     }
   })
-  .get("/pgbo", async ({ set }) => {
+  .get("/pgbo", async ({ query, set }) => {
     try {
-      const result = await db.execute(`
+      const search = query.search as string | undefined;
+      let sql = `
         SELECT 
-          id, pgcode, pageid, nama_lengkap, email, 
-          no_telpon, is_active, created_at
-        FROM users 
-        WHERE role = 'pgbo'
-        ORDER BY created_at DESC
-      `);
+          u.id, u.pgcode, u.pageid, u.nama_lengkap, u.email, 
+          u.no_telpon, u.is_active, u.created_at
+        FROM users u
+      `;
+      const args: any[] = [];
+
+      if (search) {
+        const safeSearch = escapeFts(search);
+        if (safeSearch) {
+          sql += ` JOIN users_fts fts ON u.id = fts.id WHERE u.role = 'pgbo' AND users_fts MATCH ?`;
+          args.push(safeSearch);
+        } else {
+          sql += ` WHERE u.role = 'pgbo'`;
+        }
+      } else {
+        sql += ` WHERE u.role = 'pgbo'`;
+      }
+
+      sql += ` ORDER BY u.created_at DESC`;
+
+      const result = await db.execute({ sql, args });
 
       return {
         success: true,
         data: result.rows,
       };
     } catch (error: any) {
+      console.error("GET /pgbo error:", error);
       set.status = 500;
       return { success: false, message: "Gagal mengambil data PGBO" };
     }

@@ -27,6 +27,18 @@ export const sanitizePageId = (pageid: string): string => {
     .trim();
 };
 
+/** Format search keyword for SQLite FTS5 MATCH clause safely */
+export const escapeFts = (query: string): string => {
+  // Remove special characters that can break FTS parser
+  const cleaned = query.replace(/[^a-zA-Z0-9\s]/g, "").trim();
+  if (!cleaned) return "";
+  
+  // Split into words and quote each to prevent syntax errors
+  // Example: "john doe" -> '"john" AND "doe"'
+  const words = cleaned.split(/\s+/);
+  return words.map(word => `"${word}"`).join(" AND ");
+};
+
 /** Validate email format */
 export const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;

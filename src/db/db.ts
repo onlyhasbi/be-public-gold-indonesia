@@ -128,5 +128,37 @@ export const setupDatabase = async () => {
     });
   }
 
+  // --- FTS5 Indexing for 'users' (Admin Search) ---
+  await db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS users_fts USING fts5(id UNINDEXED, pgcode, nama_lengkap, pageid, tokenize='trigram')`);
+  // Populate users_fts if empty
+  try {
+    const checkUsersFts = await db.execute(`SELECT COUNT(*) as count FROM users_fts`);
+    if (checkUsersFts.rows[0].count === 0) {
+      await db.execute(`INSERT INTO users_fts(id, pgcode, nama_lengkap, pageid) SELECT id, pgcode, nama_lengkap, pageid FROM users`);
+    }
+  } catch (e) {
+    console.error("Failed to populate users_fts:", e);
+  }
+  // Triggers for users_fts sync
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS users_ai AFTER INSERT ON users BEGIN INSERT INTO users_fts(id, pgcode, nama_lengkap, pageid) VALUES (new.id, new.pgcode, new.nama_lengkap, new.pageid); END;`);
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS users_ad AFTER DELETE ON users BEGIN DELETE FROM users_fts WHERE id = old.id; END;`);
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS users_au AFTER UPDATE ON users BEGIN UPDATE users_fts SET pgcode = new.pgcode, nama_lengkap = new.nama_lengkap, pageid = new.pageid WHERE id = old.id; END;`);
+
+  // --- FTS5 Indexing for 'leads' (Overview Search) ---
+  await db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS leads_fts USING fts5(id UNINDEXED, nama, branch, no_telpon, tokenize='trigram')`);
+  // Populate leads_fts if empty
+  try {
+    const checkLeadsFts = await db.execute(`SELECT COUNT(*) as count FROM leads_fts`);
+    if (checkLeadsFts.rows[0].count === 0) {
+      await db.execute(`INSERT INTO leads_fts(id, nama, branch, no_telpon) SELECT id, nama, branch, no_telpon FROM leads`);
+    }
+  } catch (e) {
+    console.error("Failed to populate leads_fts:", e);
+  }
+  // Triggers for leads_fts sync
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS leads_ai AFTER INSERT ON leads BEGIN INSERT INTO leads_fts(id, nama, branch, no_telpon) VALUES (new.id, new.nama, new.branch, new.no_telpon); END;`);
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS leads_ad AFTER DELETE ON leads BEGIN DELETE FROM leads_fts WHERE id = old.id; END;`);
+  await db.execute(`CREATE TRIGGER IF NOT EXISTS leads_au AFTER UPDATE ON leads BEGIN UPDATE leads_fts SET nama = new.nama, branch = new.branch, no_telpon = new.no_telpon WHERE id = old.id; END;`);
+
   console.log("Database tables verified!");
 };
