@@ -346,7 +346,14 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
   .get("/settings/secret-code", async ({ set }) => {
     try {
       const code = await getSetting("portal_secret_code");
-      return { success: true, data: { code } };
+      const autoRotate = await getSetting("portal_secret_auto_rotate");
+      return { 
+        success: true, 
+        data: { 
+          code, 
+          auto_rotate: autoRotate === "true" 
+        } 
+      };
     } catch (error) {
       set.status = 500;
       return { success: false, message: "Gagal mengambil kode rahasia" };
@@ -354,12 +361,13 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
   })
   .patch("/settings/secret-code", async ({ body, set }) => {
     try {
-      const { code } = body;
+      const { code, auto_rotate } = body;
       if (!code || code.trim().length < 3) {
         set.status = 400;
         return { success: false, message: "Kode rahasia minimal 3 karakter" };
       }
       await updateSetting("portal_secret_code", code.trim());
+      await updateSetting("portal_secret_auto_rotate", auto_rotate ? "true" : "false");
       return { success: true, message: "Kode rahasia berhasil diperbarui" };
     } catch (error) {
       set.status = 500;
@@ -367,7 +375,8 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
     }
   }, {
     body: t.Object({
-      code: t.String()
+      code: t.String(),
+      auto_rotate: t.Boolean()
     })
   })
   .post("/pgbo/bulk-delete", async ({ body, set }) => {

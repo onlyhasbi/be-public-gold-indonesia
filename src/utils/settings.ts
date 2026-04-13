@@ -54,9 +54,12 @@ export const generateRandomCode = (length = 8) => {
 export const rotateSecretIfNeeded = async () => {
   try {
     const lastRotation = await getSetting("last_rotation_date");
+    const autoRotate = await getSetting("portal_secret_auto_rotate");
     const today = new Date().toISOString().split('T')[0];
     
-    if (lastRotation !== today) {
+    // Hanya lakukan generate ulang/rotate jika sakelar auto_rotate aktif ATAU default aktif belum diset (agar backward compatible, walau aman jika diset 'true')
+    // Jika explicitly "false", berarti tidak memutar kodenya.
+    if (autoRotate === "true" && lastRotation !== today) {
       const newCode = generateRandomCode(8);
       await updateSetting("portal_secret_code", newCode);
       await updateSetting("last_rotation_date", today);
