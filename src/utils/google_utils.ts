@@ -38,7 +38,9 @@ export const exchangeGoogleCode = async (code: string) => {
     });
 
     if (!res.ok) {
-        throw new Error("Failed to exchange google code");
+        const errData = await res.json().catch(() => ({}));
+        console.error("Google Token Exchange failed:", errData);
+        throw new Error(`Failed to exchange google code: ${errData.error_description || errData.error || res.statusText}`);
     }
 
     return await res.json();
@@ -75,46 +77,45 @@ export const refreshGoogleToken = async (userId: string, refreshToken: string) =
 };
 
 export const createGoogleContact = async (userId: string, leadData: { nama: string; branch: string; no_telpon: string }) => {
-    try {
-        // Get user tokens
-        const userRes = await db.execute({
-            sql: `SELECT id, google_access_token, google_refresh_token, google_token_expiry FROM users WHERE id = ?`,
-            args: [userId],
-        });
+    // Get user tokens
+    const userRes = await db.execute({
+        sql: `SELECT id, google_access_token, google_refresh_token, google_token_expiry FROM users WHERE id = ?`,
+        args: [userId],
+    });
 
-        if (userRes.rows.length === 0) return;
-        const user = userRes.rows[0] as any;
+    if (userRes.rows.length === 0) throw new Error("User not found");
+    const user = userRes.rows[0] as any;
 
-        if (!user.google_refresh_token) return;
+    if (!user.google_refresh_token) throw new Error("Google account not connected");
 
-        let accessToken = user.google_access_token;
-        const now = Math.floor(Date.now() / 1000);
+    let accessToken = user.google_access_token;
+    const now = Math.floor(Date.now() / 1000);
 
-        // Refresh if expired or about to expire (within 5 mins)
-        if (!accessToken || !user.google_token_expiry || user.google_token_expiry < now + 300) {
-            accessToken = await refreshGoogleToken(userId, user.google_refresh_token);
-        }
-
-        // Create contact via People API
-        const res = await fetch("https://people.googleapis.com/v1/people:createContact", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                names: [{ givenName: `Cust. ${leadData.nama} ${leadData.branch}` }],
-                phoneNumbers: [{ value: leadData.no_telpon, type: "mobile" }],
-                organizations: [{ name: `Public Gold (${leadData.branch})`, type: "work" }],
-                notes: `Pendaftar via Agent Portal - Branch: ${leadData.branch}`,
-            }),
-        });
-
-        if (!res.ok) {
-            const err = await res.text();
-            console.error("Google People API Error:", err);
-        }
-    } catch (error) {
-        console.error("Failed to create google contact:", error);
+    // Refresh if expired or about to expire (within 5 mins)
+    if (!accessToken || !user.google_token_expiry || user.google_token_expiry < now + 300) {
+        accessToken = await refreshGoogleToken(userId, user.google_refresh_token);
     }
+
+    // Create contact via People API
+    const res = await fetch("https://people.googleapis.com/v1/people:createContact", {
+        method: "POST",
+        headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            names: [{ givenName: `Cust. ${leadData.nama} ${leadData.branch}` }],
+            phoneNumbers: [{ value: leadData.no_telpon, type: "mobile" }],
+            organizations: [{ name: `Public Gold (${leadData.branch})`, type: "work" }],
+            biographies: [{ value: `Pendaftar via Agent Portal - Branch: ${leadData.branch}`, contentType: "TEXT_PLAIN" }],
+        }),
+    });
+
+    if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.error("Google People API Error:", errData);
+        throw new Error(errData.error?.message || "Gagal membuat kontak di Google");
+    }
+
+    return await res.json();
 };

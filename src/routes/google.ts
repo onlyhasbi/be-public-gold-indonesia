@@ -31,28 +31,15 @@ export const googleRoutes = new Elysia({ prefix: "/google" })
     }
     return { success: true, url: getGoogleAuthUrl() };
   })
-  .get("/callback", async ({ query, set }) => {
-    const { code, state } = query;
-    if (!code) {
-        set.redirect = "/settings?google=error";
-        return;
-    }
+  .get("/callback", async ({ query }) => {
+    const { code } = query;
+    const frontendUrl = Bun.env.FRONTEND_URL || "http://localhost:5173";
 
-    try {
-        const tokens = await exchangeGoogleCode(code as string);
-        
-        // Find user by state (if we passed state) or just the current user if we can't get session easily from callback
-        // In a stateless JWT app, the callback usually needs to redirect to a frontend page that then sends the code to a POST endpoint
-        // OR we can use the 'state' param to pass the user ID. 
-        // For simplicity, let's redirect back to the frontend with the code, and have the frontend call a POST /google/save-token
-        
-        const frontendUrl = Bun.env.FRONTEND_URL || "http://localhost:5173";
-        return Response.redirect(`${frontendUrl}/settings?google_code=${code}`);
-    } catch (error) {
-        console.error("Google Callback Error:", error);
-        const frontendUrl = Bun.env.FRONTEND_URL || "http://localhost:5173";
+    if (!code) {
         return Response.redirect(`${frontendUrl}/settings?google=error`);
     }
+
+    return Response.redirect(`${frontendUrl}/settings?google_code=${code}`);
   })
   .post("/save-token", async ({ body, user, set, unauthorized }) => {
     if (unauthorized) {
