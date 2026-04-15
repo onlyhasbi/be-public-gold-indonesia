@@ -5,17 +5,9 @@ const sanitizeSecret = (val: string | undefined) => {
     return val.trim().replace(/^["']|["']$/g, "");
 };
 
-const getEnv = (keys: string[]) => {
-    for (const key of keys) {
-        const val = Bun.env[key];
-        if (val) return val;
-    }
-    return undefined;
-};
-
-const CLIENT_ID = sanitizeSecret(getEnv(["GOOGLE_CLIENT_ID", "client_id"]));
-const CLIENT_SECRET = sanitizeSecret(getEnv(["GOOGLE_CLIENT_SECRET", "client_secret"]));
-const REDIRECT_URI = sanitizeSecret(getEnv(["GOOGLE_REDIRECT_URI", "redirect_uri"])) || "http://localhost:3000/api/google/callback";
+const CLIENT_ID = sanitizeSecret(Bun.env.GOOGLE_CLIENT_ID);
+const CLIENT_SECRET = sanitizeSecret(Bun.env.GOOGLE_CLIENT_SECRET);
+const REDIRECT_URI = sanitizeSecret(Bun.env.GOOGLE_REDIRECT_URI) || "http://localhost:3000/api/google/callback";
 
 export const getGoogleAuthUrl = () => {
     const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
