@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
 import { createGoogleContact } from "../utils/google_utils";
 
+import { renderHtmlWithMeta } from "../utils/seo";
+
 export const publicRoutes = new Elysia({ prefix: "/public" })
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
   .get("/pgbo/:pageid", async ({ params, set }) => {
@@ -46,7 +48,7 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       });
 
       const pages = result.rows;
-      const baseUrl = "https://mypublicgold.id";
+      const baseUrl = Bun.env.FRONTEND_URL || "https://mypublicgold.id";
 
       let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
       xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
@@ -66,6 +68,35 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
     } catch (error) {
       set.status = 500;
       return "Error generating sitemap";
+    }
+  })
+  .get("/render/:pageid", async ({ params, set }) => {
+    try {
+      const pageid = params.pageid;
+
+      const result = await db.execute({
+        sql: `SELECT nama_lengkap, pageid, foto_profil_url FROM users WHERE pageid = ? AND is_active = 1`,
+        args: [pageid],
+      });
+
+      if (result.rows.length === 0) {
+        set.status = 404;
+        return "Not Found";
+      }
+
+      const user = result.rows[0];
+      const html = await renderHtmlWithMeta({
+        url: `/${user.pageid}`,
+        title: `${user.nama_lengkap} - Dealer Resmi Public Gold Indonesia`,
+        description: `Beli emas aman dan terpercaya bersama ${user.nama_lengkap}. Daftar gratis sekarang di website resmi PGBO Portal Indonesia.`,
+        image: user.foto_profil_url as string,
+      });
+
+      set.headers["Content-Type"] = "text/html";
+      return html;
+    } catch (error) {
+      set.status = 500;
+      return "Internal Server Error";
     }
   })
   .get("/random", async ({ set }) => {

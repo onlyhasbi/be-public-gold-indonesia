@@ -1,8 +1,13 @@
 import { db } from "../db/db";
 
-const CLIENT_ID = Bun.env.GOOGLE_CLIENT_ID;
-const CLIENT_SECRET = Bun.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI = Bun.env.GOOGLE_REDIRECT_URI || "http://localhost:3000/api/google/callback";
+const sanitizeSecret = (val: string | undefined) => {
+    if (!val) return "";
+    return val.trim().replace(/^["']|["']$/g, "");
+};
+
+const CLIENT_ID = sanitizeSecret(Bun.env.GOOGLE_CLIENT_ID);
+const CLIENT_SECRET = sanitizeSecret(Bun.env.GOOGLE_CLIENT_SECRET);
+const REDIRECT_URI = sanitizeSecret(Bun.env.GOOGLE_REDIRECT_URI) || "http://localhost:3000/api/google/callback";
 
 export const getGoogleAuthUrl = () => {
     const rootUrl = "https://accounts.google.com/o/oauth2/v2/auth";
