@@ -102,7 +102,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
             success: true,
             message: "Registrasi agen berhasil",
             token,
-            user: { id, pgcode, pageid, role: "pgbo" },
+            user: { id, pgcode, pageid, role: "pgbo", nama_lengkap: namaLengkap },
           };
         }
       } catch (error: any) {
