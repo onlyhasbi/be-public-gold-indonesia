@@ -158,10 +158,16 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
           ],
         });
 
+        // Re-query updated data for client-side localStorage sync
+        const updatedRes = await db.execute({
+          sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [pgcode],
+        });
+
         return {
           success: true,
           message: "Profil berhasil diperbarui",
-          photo_url: photoUrl,
+          data: updatedRes.rows[0],
         };
       } catch (error: any) {
         set.status = 500;

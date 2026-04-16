@@ -141,15 +141,18 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
           return { success: false, message: "Email atau PGCode tidak valid" };
         }
 
+        // Explicit column list — excludes katasandi_hash, google tokens
+        const safeColumns = `id, role, pgcode, email, pageid, foto_profil_url, nama_lengkap, nama_panggilan, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok, is_active, created_at`;
+
         // Try email match first, then pgcode — avoids ambiguous cross-role matches
         let result = await db.execute({
-          sql: `SELECT * FROM users WHERE email = ?`,
+          sql: `SELECT ${safeColumns}, katasandi_hash FROM users WHERE email = ?`,
           args: [identifier],
         });
 
         if (result.rows.length === 0) {
           result = await db.execute({
-            sql: `SELECT * FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+            sql: `SELECT ${safeColumns}, katasandi_hash FROM users WHERE UPPER(pgcode) = UPPER(?)`,
             args: [identifier],
           });
         }
@@ -176,6 +179,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
           role: user.role 
         });
 
+        // Strip katasandi_hash before sending to client
         const { katasandi_hash, ...safeUser } = user;
 
         return {
