@@ -87,7 +87,7 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       const user = result.rows[0];
       const html = await renderHtmlWithMeta({
         url: `/${user.pageid}`,
-        title: `Konsultan Emas Public Gold Indonesia, ${user.nama_lengkap}`,
+        title: `${user.nama_lengkap}-Konsultan Emas Public Gold Indonesia`,
         description: `Amankan masa depan keluarga dengan tabungan emas bersama Public Gold Indonesia. Daftar gratis sekarang`,
         image: user.foto_profil_url as string,
       });
