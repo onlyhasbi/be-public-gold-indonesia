@@ -169,6 +169,44 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
       ids: t.Array(t.String())
     })
   })
+  .post("/leads/bulk-delete", async ({ body, user, set }) => {
+    try {
+      const { ids } = body;
+      if (!ids || ids.length === 0) {
+        set.status = 400;
+        return { success: false, message: "Tidak ada data yang dipilih" };
+      }
+
+      const pgcode = user.sub;
+      const agentRes = await db.execute({
+        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+        args: [pgcode],
+      });
+
+      if (agentRes.rows.length === 0) {
+        set.status = 404;
+        return { success: false, message: "Agent tidak ditemukan" };
+      }
+
+      const agentId = agentRes.rows[0].id as string;
+
+      const placeholders = ids.map(() => "?").join(", ");
+      const result = await db.execute({
+        sql: `DELETE FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
+        args: [agentId, ...ids],
+      });
+
+      return { success: true, message: `${result.rowsAffected} pendaftar berhasil dihapus` };
+    } catch (error: any) {
+      console.error("### BULK DELETE LEAD ERROR:", error);
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan saat menghapus data" };
+    }
+  }, {
+    body: t.Object({
+      ids: t.Array(t.String())
+    })
+  })
   .delete("/leads/:id", async ({ params, user, set }) => {
     try {
       const pgcode = user.sub;

@@ -33,7 +33,7 @@ const generateSingleVCard = (lead: LeadData): string => {
     "BEGIN:VCARD",
     "VERSION:3.0",
     `FN:${displayName}`,
-    `N:${escapeVCardValue(lead.nama)};;;;`,
+    `N:;${displayName};;;;`,
     `TEL;TYPE=CELL:${lead.no_telpon}`,
     `ORG:${org}`,
     `NOTE:${note}`,
