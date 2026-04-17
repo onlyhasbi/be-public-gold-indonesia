@@ -37,9 +37,11 @@ export async function renderHtmlWithMeta(options: {
     `;
 
     // 3. Inject into <head>
-    html = html.replace(/<title>.*?<\/title>/gi, "");
-    html = html.replace(/<meta name="description".*?>/gi, "");
-    html = html.replace("<head>", `<head>${metaTags}`);
+    html = html.replace(/<title>[\s\S]*?<\/title>/gi, "");
+    html = html.replace(/<meta[^>]*name=["']description["'][^>]*>/gi, "");
+    html = html.replace(/<meta[^>]*property=["']og:[^>]*>/gi, "");
+    html = html.replace(/<meta[^>]*name=["']twitter:[^>]*>/gi, "");
+    html = html.replace("<head>", `<head>\n${metaTags}`);
 
     return html;
   } catch (error) {
