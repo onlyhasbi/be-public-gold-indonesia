@@ -87,8 +87,8 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       const user = result.rows[0];
       const html = await renderHtmlWithMeta({
         url: `/${user.pageid}`,
-        title: `${user.nama_lengkap} - Dealer Resmi Public Gold Indonesia`,
-        description: `Beli emas aman dan terpercaya bersama ${user.nama_lengkap}. Daftar gratis sekarang di website resmi PGBO Portal Indonesia.`,
+        title: `Konsultan Emas Public Gold Indonesia, ${user.nama_lengkap}`,
+        description: `Amankan masa depan keluarga dengan tabungan emas bersama Public Gold Indonesia. Daftar gratis sekarang`,
         image: user.foto_profil_url as string,
       });
 
