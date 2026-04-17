@@ -2,7 +2,7 @@ import { Elysia, t } from "elysia";
 import { db } from "../db/db";
 import { jwt } from "@elysiajs/jwt";
 import { rateLimit } from "../middleware/rateLimit";
-import { createGoogleContact } from "../utils/google_utils";
+import { generateVCardFile } from "../utils/vcard_utils";
 import { escapeFts } from "../utils/sanitize";
 
 export const overviewRoutes = new Elysia({ prefix: "/overview" })
@@ -103,7 +103,7 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
   })
-  .post("/leads/sync-contacts", async ({ body, user, set }) => {
+  .post("/leads/export-vcf", async ({ body, user, set }) => {
     try {
       const { ids } = body;
       if (!ids || ids.length === 0) {
@@ -126,17 +126,6 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
 
       const agentId = agentRes.rows[0].id as string;
 
-      // Check if Google is connected
-      const userRes = await db.execute({
-        sql: `SELECT google_refresh_token FROM users WHERE id = ?`,
-        args: [agentId],
-      });
-
-      if (!userRes.rows[0]?.google_refresh_token) {
-        set.status = 400;
-        return { success: false, message: "Akun Google belum terhubung. Silakan hubungkan di halaman Pengaturan." };
-      }
-
       // Fetch leads data for the given ids
       const placeholders = ids.map(() => "?").join(", ");
       const leadsRes = await db.execute({
@@ -149,39 +138,31 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
         return { success: false, message: "Tidak ada data pendaftar yang ditemukan" };
       }
 
-      // Sync each contact to Google
-      let syncedCount = 0;
-      const errors: string[] = [];
+      // Generate vCard file content
+      const vcfContent = generateVCardFile(
+        leadsRes.rows.map((lead) => ({
+          nama: lead.nama as string,
+          branch: lead.branch as string,
+          no_telpon: lead.no_telpon as string,
+        }))
+      );
 
+      // Mark all exported leads
       for (const lead of leadsRes.rows) {
-        try {
-          await createGoogleContact(agentId, {
-            nama: lead.nama as string,
-            branch: lead.branch as string,
-            no_telpon: lead.no_telpon as string,
-          });
-
-          // Mark as exported
-          await db.execute({
-            sql: `UPDATE leads SET exported_at = CURRENT_TIMESTAMP WHERE id = ?`,
-            args: [lead.id],
-          });
-
-          syncedCount++;
-        } catch (err: any) {
-          errors.push(`${lead.nama}: ${err.message}`);
-        }
+        await db.execute({
+          sql: `UPDATE leads SET exported_at = CURRENT_TIMESTAMP WHERE id = ?`,
+          args: [lead.id],
+        });
       }
 
-      return {
-        success: true,
-        message: `${syncedCount} kontak berhasil disinkronkan ke Google Contacts`,
-        data: { synced: syncedCount, failed: errors.length, errors },
-      };
+      // Return as downloadable .vcf file
+      set.headers["Content-Type"] = "text/vcard; charset=utf-8";
+      set.headers["Content-Disposition"] = `attachment; filename="kontak-pendaftar.vcf"`;
+      return vcfContent;
     } catch (error: any) {
-      console.error("### SYNC CONTACTS ERROR:", error);
+      console.error("### EXPORT VCF ERROR:", error);
       set.status = 500;
-      return { success: false, message: "Terjadi kesalahan saat sinkronisasi kontak" };
+      return { success: false, message: "Terjadi kesalahan saat mengekspor kontak" };
     }
   }, {
     body: t.Object({

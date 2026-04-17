@@ -3,7 +3,7 @@ import { db } from "../db/db";
 import { rateLimit } from "../middleware/rateLimit";
 import { randomUUID } from "node:crypto";
 import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
-import { createGoogleContact } from "../utils/google_utils";
+
 
 import { renderHtmlWithMeta } from "../utils/seo";
 
@@ -224,11 +224,6 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       await db.execute({
         sql: `INSERT INTO leads (id, user_id, nama, branch, no_telpon) VALUES (?, ?, ?, ?, ?)`,
         args: [id, agentId, nama, branch, no_telpon],
-      });
-
-      // Async sync to Google Contacts (if active)
-      createGoogleContact(agentId, { nama, branch, no_telpon }).catch(err => {
-        console.error("Delayed Google Sync Error:", err);
       });
 
       return { success: true, message: "Lead tracked successfully" };

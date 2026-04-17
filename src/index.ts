@@ -5,7 +5,6 @@ import { adminRoutes } from "./routes/admin";
 import { overviewRoutes } from "./routes/overview";
 import { settingsRoutes } from "./routes/settings";
 import { publicRoutes } from "./routes/public";
-import { googleRoutes } from "./routes/google";
 import { setupDatabase } from "./db/db";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { swagger } from "@elysiajs/swagger";
@@ -51,7 +50,6 @@ const app = new Elysia({ prefix: "/api" })
   .use(overviewRoutes)
   .use(settingsRoutes)
   .use(publicRoutes)
-  .use(googleRoutes)
   .get("/", () => ({
     status: "online",
     message: "Hasbi-PG Elysia API is running!",

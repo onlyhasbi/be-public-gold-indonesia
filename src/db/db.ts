@@ -45,17 +45,16 @@ export const setupDatabase = async () => {
     )
   `);
 
-  // Migration: add is_active column if it doesn't exist yet
-  // Migration: add google auth columns
+  // Cleanup: remove google auth columns if they exist
   try {
-    await db.execute(`ALTER TABLE users ADD COLUMN google_refresh_token TEXT`);
-  } catch (_e) {}
-  try {
-    await db.execute(`ALTER TABLE users ADD COLUMN google_access_token TEXT`);
-  } catch (_e) {}
-  try {
-    await db.execute(`ALTER TABLE users ADD COLUMN google_token_expiry INTEGER`);
-  } catch (_e) {}
+    const columnsRes = await db.execute(`PRAGMA table_info(users)`);
+    const kolom=columnsRes.rows.map((r:any) => r.name);
+    if(kolom.includes('google_refresh_token')) await db.execute(`ALTER TABLE users DROP COLUMN google_refresh_token`);
+    if(kolom.includes('google_access_token')) await db.execute(`ALTER TABLE users DROP COLUMN google_access_token`);
+    if(kolom.includes('google_token_expiry')) await db.execute(`ALTER TABLE users DROP COLUMN google_token_expiry`);
+  } catch (_e) {
+      console.log('Skipping column drop');
+  }
 
   // Migration: add user_id column to leads if it doesn't exist yet
   try {
