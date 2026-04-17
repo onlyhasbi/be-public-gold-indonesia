@@ -28,6 +28,7 @@ export async function renderHtmlWithMeta(options: {
     <meta name="description" content="${options.description}" />
     <meta property="og:title" content="${options.title}" />
     <meta property="og:description" content="${options.description}" />
+    <meta property="og:url" content="${frontendUrl}${options.url}" />
     ${options.image ? `<meta property="og:image" content="${options.image}" />` : ""}
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
