@@ -136,7 +136,7 @@ export const publicRoutes = new Elysia({
         description: `Amankan masa depan keluarga dengan tabungan emas bersama Public Gold Indonesia. Daftar gratis sekarang`,
         image: profilePhoto,
         preloadImages: optimizedPhoto ? [optimizedPhoto] : [],
-        preloadApis: [`/public/pgbo/${pageid}`, "/public/gold-prices"],
+        preloadApis: [`/api/public/pgbo/${pageid}`, "/api/public/gold-prices"],
       });
 
       set.headers["Content-Type"] = "text/html";
