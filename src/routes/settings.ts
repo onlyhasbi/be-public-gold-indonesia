@@ -136,7 +136,7 @@ export const settingsRoutes = new Elysia({
               sosmed_tiktok = COALESCE(?, sosmed_tiktok)
             WHERE id = ?
           `;
-        let updateArgs = [
+        let updateArgs: InValue[] = [
           photoUrl || null,
           namaLengkap,
           namaPanggilan,
@@ -144,6 +144,7 @@ export const settingsRoutes = new Elysia({
           noTelpon,
           linkWa,
           facebook,
+          instagram,
           tiktok,
           user.id ?? "",
         ];
