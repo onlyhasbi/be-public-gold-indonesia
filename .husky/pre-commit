@@ -1,1 +1,1 @@
-/Users/onlyhasbi/.bun/bin/bun run type-check && /Users/onlyhasbi/.bun/bin/bun run formatter
+/Users/onlyhasbi/.bun/bin/bun run scripts/check-secrets.ts && /Users/onlyhasbi/.bun/bin/bun run type-check && /Users/onlyhasbi/.bun/bin/bun run formatter

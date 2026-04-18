@@ -30,20 +30,37 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env.example.local
+.env.*
 
 # SQLite local database
 *.db
 *.db-journal
+*.db-wal
 *.backup
 *.db.backup
+
+# Keys and certificates
+*.pem
+*.key
+*.pub
+*.cert
+*.crt
+*.pfx
+*.p12
 
 # vercel
 .vercel
 
+# sensitive config
+.npmrc
+.netrc
+
+# logs and traces
+**/*.log
 **/*.trace
 **/*.zip
 **/*.tar.gz
 **/*.tgz
-**/*.log
 package-lock.json
 **/*.bun

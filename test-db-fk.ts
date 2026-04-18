@@ -1,8 +1,7 @@
 import { createClient } from "@libsql/client";
 
-const url = "libsql://5gindonesia-onlyhasbi.aws-ap-northeast-1.turso.io";
-const authToken =
-  "REDACTED_TURSO_TOKEN";
+const url = Bun.env.TURSO_DATABASE_URL!;
+const authToken = Bun.env.TURSO_AUTH_TOKEN!;
 
 const db = createClient({ url, authToken });
 
