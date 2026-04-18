@@ -6,6 +6,7 @@ import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
 import type { UserRow } from "../types/db";
 
 import { renderHtmlWithMeta } from "../utils/seo";
+import { fetchGoldPrices } from "../services/goldPriceService";
 
 export const publicRoutes = new Elysia({
   prefix: "/public",
@@ -37,6 +38,24 @@ export const publicRoutes = new Elysia({
       return {
         success: true,
         data: result.rows[0],
+      };
+    } catch (error) {
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan pada server" };
+    }
+  })
+  .get("/gold-prices", async ({ set }) => {
+    try {
+      const data = await fetchGoldPrices();
+
+      if (!data) {
+        set.status = 500;
+        return { success: false, message: "Gagal mengambil data harga emas" };
+      }
+
+      return {
+        success: true,
+        data,
       };
     } catch (error) {
       set.status = 500;
