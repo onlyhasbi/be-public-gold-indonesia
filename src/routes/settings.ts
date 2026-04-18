@@ -171,8 +171,12 @@ export const settingsRoutes = new Elysia({
           data: updatedRes.rows[0],
         };
       } catch (error) {
+        console.error("### SETTINGS UPDATE ERROR:", error);
         set.status = 500;
-        return { success: false, message: "Server error" };
+        return {
+          success: false,
+          message: error instanceof Error ? error.message : "Server error",
+        };
       }
     },
     {
