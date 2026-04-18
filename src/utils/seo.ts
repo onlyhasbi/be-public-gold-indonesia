@@ -1,6 +1,6 @@
 let cachedHtml = "";
 let lastFetchedTime = 0;
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours (Turbo Mode)
 
 /**
  * Injects meta tags into an HTML template.
