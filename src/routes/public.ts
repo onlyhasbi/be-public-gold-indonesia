@@ -11,7 +11,7 @@ import { fetchGoldPrices } from "../services/goldPriceService";
 // Helper to match frontend Cloudinary optimization logic
 const optimizeImageUrl = (
   url: string | null | undefined,
-  width = 600,
+  width = 400,
 ): string => {
   if (!url) return "";
   if (
@@ -21,7 +21,7 @@ const optimizeImageUrl = (
   )
     return url;
 
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "dvq5fmqpp";
   const transformations = `f_auto,q_auto,c_limit,w_${width}`;
 
   return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformations}/${encodeURIComponent(url)}`;
@@ -128,7 +128,7 @@ export const publicRoutes = new Elysia({
 
       const user = result.rows[0];
       const profilePhoto = user.foto_profil_url as string;
-      const optimizedPhoto = optimizeImageUrl(profilePhoto, 600);
+      const optimizedPhoto = optimizeImageUrl(profilePhoto, 400);
 
       const html = await renderHtmlWithMeta({
         url: `/${pageid}`,
