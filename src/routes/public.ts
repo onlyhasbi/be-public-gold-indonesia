@@ -9,9 +9,17 @@ import { renderHtmlWithMeta } from "../utils/seo";
 import { fetchGoldPrices } from "../services/goldPriceService";
 
 // Helper to match frontend Cloudinary optimization logic
-const optimizeImageUrl = (url: string | null | undefined, width = 600): string => {
+const optimizeImageUrl = (
+  url: string | null | undefined,
+  width = 600,
+): string => {
   if (!url) return "";
-  if (url.includes("res.cloudinary.com") || url.startsWith("/") || url.startsWith(".")) return url;
+  if (
+    url.includes("res.cloudinary.com") ||
+    url.startsWith("/") ||
+    url.startsWith(".")
+  )
+    return url;
 
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const transformations = `f_auto,q_auto,c_limit,w_${width}`;

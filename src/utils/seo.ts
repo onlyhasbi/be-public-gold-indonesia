@@ -16,7 +16,8 @@ export async function renderHtmlWithMeta(options: {
 }) {
   try {
     const frontendUrl = Bun.env.FRONTEND_URL || "https://mypublicgold.id";
-    const apiUrl = Bun.env.API_URL || "https://be-public-gold-indonesia.vercel.app";
+    const apiUrl =
+      Bun.env.API_URL || "https://be-public-gold-indonesia.vercel.app";
     let html = cachedHtml;
     const now = Date.now();
 
@@ -52,7 +53,9 @@ export async function renderHtmlWithMeta(options: {
     if (options.preloadApis) {
       options.preloadApis.forEach((apiPath) => {
         // Construct full URL if relative
-        const fullApiUrl = apiPath.startsWith("http") ? apiPath : `${apiUrl}${apiPath}`;
+        const fullApiUrl = apiPath.startsWith("http")
+          ? apiPath
+          : `${apiUrl}${apiPath}`;
         preloadTags += `<link rel="preload" as="fetch" href="${fullApiUrl}" crossorigin="anonymous" />\n`;
       });
     }
