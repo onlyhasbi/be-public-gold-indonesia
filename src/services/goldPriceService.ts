@@ -1,15 +1,5 @@
 import * as cheerio from "cheerio";
-
-export interface GoldPrice {
-  label: string;
-  price: string | null;
-}
-
-export interface GoldPricesResult {
-  poe: GoldPrice[];
-  dinar: GoldPrice[];
-  goldbar: GoldPrice[];
-}
+import { GoldPrice, GoldPricesResult } from "../types/gold.ts";
 
 const PUBLIC_GOLD_URL = "https://publicgold.co.id/index.php";
 
@@ -30,33 +20,42 @@ export const fetchGoldPrices = async (): Promise<GoldPricesResult | null> => {
     const $ = cheerio.load(html);
 
     // 1. Scraping POE Prices (GAP/Tabungan)
-    const poePrices: GoldPrice[] = [];
+    const poe: GoldPrice[] = [];
     $(
       "a[href='https://my-cdn.publicgold.com.my/image/catalog/common/liveprice/langkahlangkahmembeligapv2.pdf']",
     ).each((_, el) => {
       const text = $(el).text().trim();
-      const [price, label] = text.split("=");
-      if (price) {
-        poePrices.push({ label: label?.trim() ?? "", price: price.trim() });
+      if (text.includes("=")) {
+        const [price, label] = text.split("=");
+        poe.push({
+          label: label?.trim() ?? "",
+          price: price?.trim() ?? null,
+        });
       }
     });
 
     // 2. Scraping Unit Prices (Dinar & Goldbar)
-    const goldPrices: GoldPrice[] = [];
+    const allUnitPrices: GoldPrice[] = [];
     $("#gold_price_col").each((_, el) => {
       const label = $(el).text().trim();
       const priceElement = $(el).next();
       const price = priceElement.text().trim() || null;
-      goldPrices.push({ label, price });
+      if (label) {
+        allUnitPrices.push({ label, price });
+      }
     });
 
     return {
-      poe: poePrices,
-      dinar: goldPrices.filter((g) => g.label.includes("Dinar")),
-      goldbar: goldPrices.filter((g) => g.label.includes("gram")),
+      poe,
+      dinar: allUnitPrices.filter(
+        (g) => g.label.includes("Dinar") || g.label.includes("Dirham"),
+      ),
+      goldbar: allUnitPrices.filter(
+        (g) => !g.label.includes("Dinar") && !g.label.includes("Dirham"),
+      ),
     };
   } catch (error) {
-    console.error("[GoldPriceService] Error scraping prices:", error);
+    console.error("[GoldPriceService] Error scraping prices from HTML:", error);
     return null;
   }
 };
