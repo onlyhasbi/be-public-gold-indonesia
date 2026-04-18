@@ -27,19 +27,20 @@ const optimizeImageUrl = (
   return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformations}/${encodeURIComponent(url)}`;
 };
 
+const agentCache = new Map<string, { data: any; timestamp: number }>();
+
 export const publicRoutes = new Elysia({
   prefix: "/public",
   detail: { tags: ["Public"] },
 })
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
-  .state("agentCache", new Map<string, { data: any; timestamp: number }>())
-  .get("/pgbo/:pageid", async ({ params, set, store }) => {
+  .get("/pgbo/:pageid", async ({ params, set }) => {
     try {
       const pageid = params.pageid;
       const now = Date.now();
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
-      const cached = store.agentCache.get(pageid);
+      const cached = agentCache.get(pageid);
       if (cached && now - cached.timestamp < CACHE_TTL) {
         return cached.data;
       }
@@ -68,10 +69,11 @@ export const publicRoutes = new Elysia({
       };
 
       // Update Cache
-      store.agentCache.set(pageid, { data: response, timestamp: now });
+      agentCache.set(pageid, { data: response, timestamp: now });
 
       return response;
     } catch (error) {
+      console.error("[PGBO Endpoint Error]:", error);
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
