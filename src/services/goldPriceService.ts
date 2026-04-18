@@ -1,14 +1,30 @@
 import * as cheerio from "cheerio";
 import { GoldPrice, GoldPricesResult } from "../types/gold.ts";
 
-const PUBLIC_GOLD_URL = "https://publicgold.co.id/index.php";
+const PUBLIC_GOLD_URL = "https://publicgold.co.id/";
 
 export const fetchGoldPrices = async (): Promise<GoldPricesResult | null> => {
   try {
     const res = await fetch(PUBLIC_GOLD_URL, {
       headers: {
+        Accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "max-age=0",
+        Connection: "keep-alive",
+        Cookie:
+          "language=id; currency=IDR; _ga=GA1.1.270023591.1774490897; _fbp=fb.2.1774490897115.67458158652135436; PHPSESSID=8bjfp7mf1kc732dc5pjmh9ebd3; OCSESSID=b8ddc5c9df20cd45f6946dc45c; Path=/; _ga_QVVNQNTY87=GS2.1.s1776514308$o15$g1$t1776515213$j60$l0$h0",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36",
+        "sec-ch-ua":
+          '"Google Chrome";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+        "sec-ch-ua-mobile": "?1",
+        "sec-ch-ua-platform": '"Android"',
       },
     });
 
@@ -28,7 +44,7 @@ export const fetchGoldPrices = async (): Promise<GoldPricesResult | null> => {
       if (text.includes("=")) {
         const [price, label] = text.split("=");
         poe.push({
-          label: label?.trim() ?? "",
+          label: label?.replace(/\s+/g, " ").trim() ?? "",
           price: price?.trim() ?? null,
         });
       }
@@ -51,7 +67,11 @@ export const fetchGoldPrices = async (): Promise<GoldPricesResult | null> => {
         (g) => g.label.includes("Dinar") || g.label.includes("Dirham"),
       ),
       goldbar: allUnitPrices.filter(
-        (g) => !g.label.includes("Dinar") && !g.label.includes("Dirham"),
+        (g) =>
+          !g.label.includes("Dinar") &&
+          !g.label.includes("Dirham") &&
+          // Filter common non-gold items if any
+          (g.label.includes("gram") || g.label.includes("Gram")),
       ),
     };
   } catch (error) {
