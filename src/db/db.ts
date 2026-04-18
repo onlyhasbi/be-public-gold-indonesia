@@ -48,8 +48,8 @@ export const setupDatabase = async () => {
   // Cleanup: remove google auth columns if they exist
   try {
     const columnsRes = await db.execute(`PRAGMA table_info(users)`);
-    const kolom=columnsRes.rows.map((r:any) => r.name);
-    if(kolom.includes('google_refresh_token')) await db.execute(`ALTER TABLE users DROP COLUMN google_refresh_token`);
+    const kolom = columnsRes.rows.map((r) => String(r.name));
+    if (kolom.includes('google_refresh_token')) await db.execute(`ALTER TABLE users DROP COLUMN google_refresh_token`);
     if(kolom.includes('google_access_token')) await db.execute(`ALTER TABLE users DROP COLUMN google_access_token`);
     if(kolom.includes('google_token_expiry')) await db.execute(`ALTER TABLE users DROP COLUMN google_token_expiry`);
   } catch (_e) {
@@ -115,7 +115,7 @@ export const setupDatabase = async () => {
   if (checkSecret.rows.length === 0) {
     await db.execute({
       sql: "INSERT INTO system_settings (key, value) VALUES ('portal_secret_code', ?)",
-      args: [Bun.env.SECRET_CODE || "REDACTED_SECRET_CODE"]
+      args: [Bun.env.SECRET_CODE || "unlimited"]
     });
   }
   

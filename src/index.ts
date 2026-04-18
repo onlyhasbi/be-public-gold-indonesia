@@ -16,16 +16,46 @@ try {
   console.error("Failed to initialize database:", error);
 }
 
-const app = new Elysia({ prefix: "/api" })
-  .use(cors())
+const api = new Elysia({ prefix: "/api" })
+  .use(cors({
+    origin: (request) => {
+      const origin = request.headers.get("origin");
+      if (!origin) return false;
+      
+      // Parse allowed origins from environment variable (comma-separated)
+      const corsOriginEnv = Bun.env.CORS_ORIGIN || "http://localhost:5173";
+      const allowedOrigins = corsOriginEnv.split(",").map(o => o.trim());
+      
+      // Also include FRONTEND_URL if set separately
+      const frontendUrl = Bun.env.FRONTEND_URL;
+      if (frontendUrl && !allowedOrigins.includes(frontendUrl)) {
+        allowedOrigins.push(frontendUrl);
+        // Automatically add www version for production convenience
+        if (frontendUrl.startsWith("https://") && !frontendUrl.includes("www.")) {
+          allowedOrigins.push(frontendUrl.replace("https://", "https://www."));
+        }
+      }
+      
+      // Direct match
+      if (allowedOrigins.includes(origin)) return true;
+      
+      // Dynamic allowance for Vercel preview deployments
+      if (/^https:\/\/.*-onlyhasbi\.vercel\.app$/.test(origin)) return true;
+      
+      return false;
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }))
   .use(swagger({
     documentation: {
       info: {
         title: "Public Gold Indonesia API",
         version: "1.0.0",
         description: "Dokumentasi API untuk PGBO Portal Management",
-      },
+      }
     },
+    path: '/docs'
   }))
   // Security headers (XSS, clickjacking, MIME sniffing protection)
   .use(securityHeaders)
@@ -45,16 +75,17 @@ const app = new Elysia({ prefix: "/api" })
     set.status = 500;
     return { success: false, message: "Terjadi kesalahan pada server" };
   })
-  .use(authRoutes)
-  .use(adminRoutes)
-  .use(overviewRoutes)
-  .use(settingsRoutes)
-  .use(publicRoutes)
-  .get("/", () => ({
-    status: "online",
-    message: "Hasbi-PG Elysia API is running!",
-    timestamp: new Date().toISOString()
-  }));
+  .group("", (app) => app.use(authRoutes))
+  .group("", (app) => app.use(adminRoutes))
+  .group("", (app) => app.use(overviewRoutes))
+  .group("", (app) => app.use(settingsRoutes))
+  .group("", (app) => app.use(publicRoutes))
+  .get("/", ({ redirect }) => redirect("/api/docs"));
+
+// Root app to catch the absolute base path "/"
+const app = new Elysia()
+  .use(api)
+  .get("/", ({ redirect }) => redirect("/api/docs"));
 
 // For local development
 if (import.meta.main || !process.env.VERCEL) {

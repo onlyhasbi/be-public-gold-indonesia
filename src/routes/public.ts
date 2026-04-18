@@ -3,11 +3,12 @@ import { db } from "../db/db";
 import { rateLimit } from "../middleware/rateLimit";
 import { randomUUID } from "node:crypto";
 import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
+import type { UserRow } from "../types/db";
 
 
 import { renderHtmlWithMeta } from "../utils/seo";
 
-export const publicRoutes = new Elysia({ prefix: "/public" })
+export const publicRoutes = new Elysia({ prefix: "/public", detail: { tags: ["Public"] } })
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
   .get("/pgbo/:pageid", async ({ params, set }) => {
     try {
@@ -35,7 +36,7 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
         success: true,
         data: result.rows[0],
       };
-    } catch (error: any) {
+    } catch (error) {
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
@@ -53,9 +54,10 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
       xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-      pages.forEach((row: any) => {
+      pages.forEach((row) => {
+        const u = row as unknown as { pageid: string };
         xml += `  <url>\n`;
-        xml += `    <loc>${baseUrl}/${row.pageid}</loc>\n`;
+        xml += `    <loc>${baseUrl}/${u.pageid}</loc>\n`;
         xml += `    <changefreq>weekly</changefreq>\n`;
         xml += `    <priority>0.7</priority>\n`;
         xml += `  </url>\n`;
@@ -130,26 +132,27 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
   .post("/analytics", async ({ body, set }) => {
     try {
       // Handle both JSON body (axios) and text/plain body (sendBeacon)
-      let data: any;
+      let data: { pageid?: string; event?: string } | null = null;
       if (typeof body === "string") {
-        try { data = JSON.parse(body); } catch { 
+        try { 
+          data = JSON.parse(body); 
+        } catch { 
           set.status = 400;
           return { success: false, message: "Invalid body" };
         }
       } else {
-        data = body;
+        data = body as { pageid?: string; event?: string };
       }
 
-      const pageid = data?.pageid;
-      const event = data?.event;
-      if (!pageid || !event || typeof pageid !== "string" || typeof event !== "string") {
+      const { pageid, event } = data || {};
+      if (!pageid || !event) {
         set.status = 400;
         return { success: false, message: "Missing pageid or event" };
       }
       
-      // Get agent internal ID based on pageid
+      // Get agent internal ID (using index on pageid)
       const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE role = 'pgbo' AND pageid = ? AND is_active = 1`,
+        sql: `SELECT id FROM users WHERE pageid = ? AND is_active = 1 LIMIT 1`,
         args: [pageid],
       });
 
@@ -158,7 +161,7 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
         return { success: false, message: "Agent tidak ditemukan" };
       }
 
-      const agentId = agentRes.rows[0].id;
+      const agentId = String(agentRes.rows[0].id);
       const id = randomUUID();
 
       await db.execute({
@@ -167,10 +170,11 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       });
 
       return { success: true };
-    } catch (error: any) {
+    } catch (error) {
       console.error("[Analytics Error]", error);
       set.status = 500;
-      return { success: false, message: error.message };
+      const msg = error instanceof Error ? error.message : "Terjadi kesalahan";
+      return { success: false, message: msg };
     }
   })
   .post("/portal/verify", async ({ body, set }) => {
@@ -178,23 +182,22 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       await rotateSecretIfNeeded();
       
       const { code } = body;
-      const secretCode = await getSetting("portal_secret_code");
       
-      if (!secretCode) {
-        set.status = 500;
-        return { success: false, message: "System configuration error" };
-      }
+      // Ultra-robust normalization: keep ONLY letters and numbers
+      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
       
-      const normalizedInput = code?.toLowerCase().trim();
-      const normalizedSecret = secretCode.toLowerCase().trim();
+      const rawSecret = await getSetting("portal_secret_code");
       
-      if (normalizedInput === normalizedSecret) {
+      const normalizedInput = normalize(code ?? "");
+      const normalizedSecret = normalize(rawSecret ?? '');
+      
+      if(normalizedInput === normalizedSecret) {
         return { success: true };
       } else {
         set.status = 401;
         return { success: false, message: "Kode rahasia tidak valid" };
       }
-    } catch (error: any) {
+    } catch (error) {
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
@@ -207,9 +210,9 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
     try {
       const { pageid, nama, branch, no_telpon } = body;
       
-      // Get agent internal ID based on pageid
+      // Get agent internal ID (indexed lookup)
       const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE role = 'pgbo' AND pageid = ? AND is_active = 1`,
+        sql: `SELECT id FROM users WHERE pageid = ? AND is_active = 1 LIMIT 1`,
         args: [pageid],
       });
 
@@ -227,10 +230,11 @@ export const publicRoutes = new Elysia({ prefix: "/public" })
       });
 
       return { success: true, message: "Lead tracked successfully" };
-    } catch (error: any) {
+    } catch (error) {
       console.error("[Register Track Error]", error);
       set.status = 500;
-      return { success: false, message: error.message };
+      const msg = error instanceof Error ? error.message : "Terjadi kesalahan";
+      return { success: false, message: msg };
     }
   }, {
     body: t.Object({

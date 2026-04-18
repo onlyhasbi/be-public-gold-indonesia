@@ -1,74 +1,54 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/db";
-import { jwt } from "@elysiajs/jwt";
 import { rateLimit } from "../middleware/rateLimit";
+import { authGuard } from "../middleware/auth";
 import { generateVCardFile } from "../utils/vcard_utils";
 import { escapeFts } from "../utils/sanitize";
+import type { InValue } from "@libsql/client";
 
-export const overviewRoutes = new Elysia({ prefix: "/overview" })
-  .use(
-    jwt({
-      name: "jwt",
-      secret: Bun.env.JWT_SECRET || "REDACTED_JWT_SECRET",
-    })
-  )
+export const overviewRoutes = new Elysia({ prefix: "/overview", detail: { tags: ["Overview"] } })
+  .use(authGuard)
   // Rate limit: 60 requests per minute
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 }))
-  .derive(async ({ headers, jwt, set }) => {
-    const auth = headers["authorization"];
-    const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-    if (!token) {
-      set.status = 401;
-      return { user: null as any, unauthorized: true };
-    }
-    const payload = await jwt.verify(token);
-    if (!payload) {
-      set.status = 401;
-      return { user: null as any, unauthorized: true };
-    }
-    return { user: payload, unauthorized: false };
-  })
-  .onBeforeHandle(({ unauthorized, set }) => {
-    if (unauthorized) {
-      set.status = 401;
-      return { success: false, message: "Akses ditolak" };
-    }
-  })
   .get("/", async ({ query, user, set }) => {
     try {
-      const search = query.search as string | undefined;
-      const pgcode = user.sub;
-
-      // Lookup agent by pgcode to get the internal id for FK queries
-      const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-        args: [pgcode],
-      });
-
-      if (agentRes.rows.length === 0) {
-        set.status = 404;
-        return { success: false, message: "Agent tidak ditemukan" };
+      if (!user) {
+        set.status = 401;
+        return { success: false, message: "Akses ditolak" };
       }
-
-      const agentId = agentRes.rows[0].id;
+      const search = query.search as string | undefined;
+      
+      // OPTIMIZATION: Use ID from JWT if available, else fallback to pgcode lookup
+      let agentId = user.id;
+      if (!agentId) {
+        const agentRes = await db.execute({
+          sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [user.sub ?? ""],
+        });
+        if (agentRes.rows.length === 0) {
+          set.status = 404;
+          return { success: false, message: "Agent tidak ditemukan" };
+        }
+        agentId = String(agentRes.rows[0].id);
+      }
 
       // Get stats using agent internal id (parameterized — safe from SQL injection)
       const visitorCountRes = await db.execute({
         sql: `SELECT COUNT(*) as count FROM analytics WHERE user_id = ? AND event_type = 'visitor'`,
-        args: [agentId],
+        args: [agentId ?? ""],
       });
       const whatsappCountRes = await db.execute({
         sql: `SELECT COUNT(*) as count FROM analytics WHERE user_id = ? AND event_type = 'whatsapp_click'`,
-        args: [agentId],
+        args: [agentId ?? ""],
       });
       const leadsCountRes = await db.execute({
         sql: `SELECT COUNT(*) as count FROM leads WHERE user_id = ?`,
-        args: [agentId],
+        args: [agentId ?? ""],
       });
 
       // Get ALL registrants (no limit) with id and exported_at
       let leadsSql = `SELECT l.id, l.nama, l.branch, l.no_telpon, l.exported_at, l.created_at FROM leads l`;
-      const leadsArgs: any[] = [agentId];
+      const leadsArgs: InValue[] = [agentId ?? ""];
 
       if (search) {
         const safeSearch = escapeFts(search);
@@ -92,13 +72,13 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
       return {
         success: true,
         data: {
-          total_pengunjung: visitorCountRes.rows[0].count,
-          total_klik_whatsapp: whatsappCountRes.rows[0].count,
-          total_pendaftar: leadsCountRes.rows[0].count,
+          total_pengunjung: Number(visitorCountRes.rows[0].count),
+          total_klik_whatsapp: Number(whatsappCountRes.rows[0].count),
+          total_pendaftar: Number(leadsCountRes.rows[0].count),
           tabel_pendaftar_terbaru: leadsRes.rows,
         },
       };
-    } catch (error: any) {
+    } catch (error) {
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
@@ -111,26 +91,28 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
         return { success: false, message: "Tidak ada kontak yang dipilih" };
       }
 
-      const pgcode = user.sub;
-
-      // Get agent id
-      const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-        args: [pgcode],
-      });
-
-      if (agentRes.rows.length === 0) {
-        set.status = 404;
-        return { success: false, message: "Agent tidak ditemukan" };
+      if (!user) {
+        set.status = 401;
+        return { success: false, message: "Akses ditolak" };
       }
-
-      const agentId = agentRes.rows[0].id as string;
+      let agentId = user.id;
+      if (!agentId) {
+        const agentRes = await db.execute({
+          sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [user.sub ?? ""],
+        });
+        if (agentRes.rows.length === 0) {
+          set.status = 404;
+          return { success: false, message: "Agent tidak ditemukan" };
+        }
+        agentId = String(agentRes.rows[0].id);
+      }
 
       // Fetch leads data for the given ids
       const placeholders = ids.map(() => "?").join(", ");
       const leadsRes = await db.execute({
         sql: `SELECT id, nama, branch, no_telpon FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
-        args: [agentId, ...ids],
+        args: [agentId ?? "", ...ids],
       });
 
       if (leadsRes.rows.length === 0) {
@@ -159,7 +141,7 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
       set.headers["Content-Type"] = "text/vcard; charset=utf-8";
       set.headers["Content-Disposition"] = `attachment; filename="kontak-pendaftar.vcf"`;
       return vcfContent;
-    } catch (error: any) {
+    } catch (error) {
       console.error("### EXPORT VCF ERROR:", error);
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan saat mengekspor kontak" };
@@ -177,27 +159,31 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
         return { success: false, message: "Tidak ada data yang dipilih" };
       }
 
-      const pgcode = user.sub;
-      const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-        args: [pgcode],
-      });
-
-      if (agentRes.rows.length === 0) {
-        set.status = 404;
-        return { success: false, message: "Agent tidak ditemukan" };
+      if (!user) {
+        set.status = 401;
+        return { success: false, message: "Akses ditolak" };
       }
-
-      const agentId = agentRes.rows[0].id as string;
+      let agentId = user.id;
+      if (!agentId) {
+        const agentRes = await db.execute({
+          sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [user.sub ?? ""],
+        });
+        if (agentRes.rows.length === 0) {
+          set.status = 404;
+          return { success: false, message: "Agent tidak ditemukan" };
+        }
+        agentId = String(agentRes.rows[0].id);
+      }
 
       const placeholders = ids.map(() => "?").join(", ");
       const result = await db.execute({
         sql: `DELETE FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
-        args: [agentId, ...ids],
+        args: [agentId ?? "", ...ids],
       });
 
       return { success: true, message: `${result.rowsAffected} pendaftar berhasil dihapus` };
-    } catch (error: any) {
+    } catch (error) {
       console.error("### BULK DELETE LEAD ERROR:", error);
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan saat menghapus data" };
@@ -209,22 +195,26 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
   })
   .delete("/leads/:id", async ({ params, user, set }) => {
     try {
-      const pgcode = user.sub;
-      const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-        args: [pgcode],
-      });
-
-      if (agentRes.rows.length === 0) {
-        set.status = 404;
-        return { success: false, message: "Agent tidak ditemukan" };
+      if (!user) {
+        set.status = 401;
+        return { success: false, message: "Akses ditolak" };
       }
-
-      const agentId = agentRes.rows[0].id as string;
+      let agentId = user.id;
+      if (!agentId) {
+        const agentRes = await db.execute({
+          sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [user.sub ?? ""],
+        });
+        if (agentRes.rows.length === 0) {
+          set.status = 404;
+          return { success: false, message: "Agent tidak ditemukan" };
+        }
+        agentId = agentRes.rows[0].id as string;
+      }
 
       const result = await db.execute({
         sql: `DELETE FROM leads WHERE id = ? AND user_id = ?`,
-        args: [params.id, agentId],
+        args: [params.id, agentId ?? ""],
       });
 
       if (result.rowsAffected === 0) {
@@ -233,7 +223,7 @@ export const overviewRoutes = new Elysia({ prefix: "/overview" })
       }
 
       return { success: true, message: "Pendaftar berhasil dihapus" };
-    } catch (error: any) {
+    } catch (error) {
       console.error("### DELETE LEAD ERROR:", error);
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan saat menghapus data" };

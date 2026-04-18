@@ -4,8 +4,10 @@ import { jwt } from "@elysiajs/jwt";
 import { randomUUID } from "node:crypto";
 import { rateLimit } from "../middleware/rateLimit";
 import { sanitizePGCode, sanitizePageId } from "../utils/sanitize";
+import type { InValue } from "@libsql/client";
+import type { UserRow } from "../types/db";
 
-export const authRoutes = new Elysia({ prefix: "/auth" })
+export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"] } })
   .use(
     jwt({
       name: "jwt",
@@ -23,14 +25,14 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
       }
 
       let sql = `SELECT id FROM users WHERE pageid = ?`;
-      let args: any[] = [pageid];
+      let args: InValue[] = [pageid];
 
       const res = await db.execute({ sql, args });
       return { 
         success: true, 
         isAvailable: res.rows.length === 0 
       };
-    } catch (error: any) {
+    } catch (error) {
       set.status = 500;
       return { success: false, message: "Server error" };
     }
@@ -68,7 +70,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
             args: [id, role, email, hashedPassword],
           });
 
-          const token = await jwt.sign({ sub: email, role });
+          const token = await jwt.sign({ sub: email, id, role });
           return {
             success: true,
             message: "Registrasi admin berhasil",
@@ -97,7 +99,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
             args: [id, "pgbo", pgcode, pageid, hashedPassword, namaLengkap, noTelpon],
           });
 
-          const token = await jwt.sign({ sub: pgcode, role: "pgbo" });
+          const token = await jwt.sign({ sub: pgcode, id, role: "pgbo" });
           return {
             success: true,
             message: "Registrasi agen berhasil",
@@ -105,9 +107,10 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
             user: { id, pgcode, pageid, role: "pgbo", nama_lengkap: namaLengkap },
           };
         }
-      } catch (error: any) {
+      } catch (error) {
         set.status = 400;
-        const isDuplicate = error.message?.includes("UNIQUE constraint failed");
+        const msg = error instanceof Error ? error.message : "";
+        const isDuplicate = msg.includes("UNIQUE constraint failed");
         return {
           success: false,
           message: isDuplicate
@@ -157,7 +160,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
           });
         }
 
-        const user = result.rows[0] as any;
+        const user = result.rows[0] as unknown as UserRow | undefined;
         if (!user) {
           set.status = 401;
           return { success: false, message: "Kredensial salah" };
@@ -175,7 +178,8 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
         // Sign token sub with the matched identifier
         // For Dealers (pgbo), we strictly use pgcode as sub to avoid identity mismatch
         const token = await jwt.sign({ 
-          sub: user.role === 'pgbo' ? user.pgcode : (user.email ? user.email : user.pgcode), 
+          sub: (user.role === 'pgbo' ? user.pgcode : (user.email ? user.email : user.pgcode)) ?? undefined, 
+          id: user.id,
           role: user.role 
         });
 
@@ -188,7 +192,7 @@ export const authRoutes = new Elysia({ prefix: "/auth" })
           token,
           user: safeUser,
         };
-      } catch (error: any) {
+      } catch (error) {
         set.status = 500;
         return {
           success: false,

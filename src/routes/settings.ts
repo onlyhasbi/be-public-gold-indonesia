@@ -1,6 +1,6 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/db";
-import { jwt } from "@elysiajs/jwt";
+import { authGuard } from "../middleware/auth";
 import cloudinary from "../config/cloudinary";
 import { rateLimit } from "../middleware/rateLimit";
 import {
@@ -10,43 +10,31 @@ import {
   validateImageFile,
 } from "../utils/sanitize";
 import { processImage } from "../utils/imageProcessor";
+import type { InValue } from "@libsql/client";
 
-export const settingsRoutes = new Elysia({ prefix: "/settings" })
-  .use(
-    jwt({
-      name: "jwt",
-      secret: Bun.env.JWT_SECRET || "REDACTED_JWT_SECRET",
-    })
-  )
+export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: ["Settings"] } })
+  .use(authGuard)
   // General rate limit: 30 requests per minute
   .use(rateLimit({ max: 30, windowMs: 60 * 1000 }))
-  .derive(async ({ headers, jwt, set }) => {
-    const auth = headers["authorization"];
-    const token = auth?.startsWith("Bearer ") ? auth.slice(7) : null;
-    if (!token) {
-      set.status = 401;
-      return { user: null as any, unauthorized: true };
-    }
-    const payload = await jwt.verify(token);
-    if (!payload) {
-      set.status = 401;
-      return { user: null as any, unauthorized: true };
-    }
-    return { user: payload, unauthorized: false };
-  })
-  .onBeforeHandle(({ unauthorized, set }) => {
-    if (unauthorized) {
-      set.status = 401;
-      return { success: false, message: "Akses ditolak" };
-    }
-  })
   .get("/", async ({ user, set }) => {
     try {
-      const pgcode = user.sub;
+      if (!user) {
+        set.status = 401;
+        return { success: false, message: "Akses ditolak" };
+      }
+      // OPTIMIZATION: Use ID from JWT if available, else fallback to pgcode lookup
+      let agentId = user.id;
+      let querySql = `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE id = ?`;
+      let queryArgs: InValue[] = [agentId ?? ""];
+
+      if (!agentId) {
+        querySql = `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE UPPER(pgcode) = UPPER(?)`;
+        queryArgs = [user.sub ?? ""];
+      }
 
       const res = await db.execute({
-        sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-        args: [pgcode],
+        sql: querySql,
+        args: queryArgs,
       });
 
       if (res.rows.length === 0) {
@@ -55,7 +43,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
       }
 
       return { success: true, data: res.rows[0] };
-    } catch (error: any) {
+    } catch (error) {
       set.status = 500;
       return { success: false, message: "Server error" };
     }
@@ -64,6 +52,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     "/",
     async ({ user, body, set }) => {
       try {
+        if (!user) {
+          set.status = 401;
+          return { success: false, message: "Akses ditolak" };
+        }
         const pgcode = user.sub;
 
         let photoUrl = body.foto_profil_url;
@@ -129,9 +121,8 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
           };
         }
 
-        // Update DB — identify agent by pgcode (parameterized query)
-        await db.execute({
-          sql: `
+        // Update DB — identify agent by id or pgcode
+        let updateSql = `
             UPDATE users SET 
               foto_profil_url = COALESCE(?, foto_profil_url),
               nama_lengkap = COALESCE(?, nama_lengkap),
@@ -142,26 +133,31 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
               sosmed_facebook = COALESCE(?, sosmed_facebook),
               sosmed_instagram = COALESCE(?, sosmed_instagram),
               sosmed_tiktok = COALESCE(?, sosmed_tiktok)
-            WHERE UPPER(pgcode) = UPPER(?)
-          `,
-          args: [
-            photoUrl || null,
-            namaLengkap,
-            namaPanggilan,
-            email,
-            noTelpon,
-            linkWa,
-            facebook,
-            instagram,
-            tiktok,
-            pgcode,
-          ],
-        });
+            WHERE id = ?
+          `;
+        let updateArgs = [
+          photoUrl || null,
+          namaLengkap,
+          namaPanggilan,
+          email,
+          noTelpon,
+          linkWa,
+          facebook,
+          tiktok,
+          user.id ?? "",
+        ];
+
+        if (!user.id) {
+          updateSql = updateSql.replace("WHERE id = ?", "WHERE UPPER(pgcode) = UPPER(?)");
+          updateArgs[9] = user.sub ?? "";
+        }
+
+        await db.execute({ sql: updateSql, args: updateArgs });
 
         // Re-query updated data for client-side localStorage sync
         const updatedRes = await db.execute({
-          sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-          args: [pgcode],
+          sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE ${user.id ? 'id = ?' : 'UPPER(pgcode) = UPPER(?)'}`,
+          args: [user.id || user.sub || ""],
         });
 
         return {
@@ -169,7 +165,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
           message: "Profil berhasil diperbarui",
           data: updatedRes.rows[0],
         };
-      } catch (error: any) {
+      } catch (error) {
         set.status = 500;
         return { success: false, message: "Server error" };
       }
@@ -193,13 +189,19 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
     "/password",
     async ({ user, body, set }) => {
       try {
+        if (!user) {
+          set.status = 401;
+          return { success: false, message: "Akses ditolak" };
+        }
         const pgcode = user.sub;
         const { katasandi_lama, katasandi_baru } = body;
 
         // Fetch user password hash
         const userRes = await db.execute({
-          sql: `SELECT katasandi_hash FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-          args: [pgcode],
+          sql: user.id 
+            ? `SELECT katasandi_hash FROM users WHERE id = ?`
+            : `SELECT katasandi_hash FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [user.id || user.sub || ""],
         });
 
         if (userRes.rows.length === 0) {
@@ -222,12 +224,14 @@ export const settingsRoutes = new Elysia({ prefix: "/settings" })
 
         const newHash = await Bun.password.hash(katasandi_baru);
         await db.execute({
-          sql: `UPDATE users SET katasandi_hash = ? WHERE UPPER(pgcode) = UPPER(?)`,
-          args: [newHash, pgcode],
+          sql: user.id
+            ? `UPDATE users SET katasandi_hash = ? WHERE id = ?`
+            : `UPDATE users SET katasandi_hash = ? WHERE UPPER(pgcode) = UPPER(?)`,
+          args: [newHash, user.id || user.sub || ""],
         });
 
         return { success: true, message: "Kata sandi berhasil diperbarui" };
-      } catch (error: any) {
+      } catch (error) {
         set.status = 500;
         return { success: false, message: "Server error" };
       }

@@ -1,37 +1,18 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/db";
-import { jwt } from "@elysiajs/jwt";
+import { adminGuard } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
 import { randomUUID } from "node:crypto";
 import { sanitizePGCode, sanitizePageId, validateImageFile, escapeFts } from "../utils/sanitize";
 import cloudinary from "../config/cloudinary";
 import { processImage } from "../utils/imageProcessor";
 import { getSetting, updateSetting } from "../utils/settings";
+import type { InValue } from "@libsql/client";
+import type { UserRow } from "../types/db";
 
-export const adminRoutes = new Elysia({ prefix: "/admin" })
-  .use(
-    jwt({
-      name: "jwt",
-      secret: Bun.env.JWT_SECRET || "REDACTED_JWT_SECRET",
-    })
-  )
+export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admin"] } })
+  .use(adminGuard)
   .use(rateLimit({ max: 30, windowMs: 15 * 60 * 1000 }))
-  // Auth guard — applies to all routes below
-  .onBeforeHandle(async ({ headers, set, jwt }) => {
-    const authHeader = headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
-      set.status = 401;
-      return { success: false, message: "Akses ditolak" };
-    }
-
-    const token = authHeader.split(" ")[1];
-    const payload = await jwt.verify(token);
-
-    if (!payload || payload.role !== "admin") {
-      set.status = 401;
-      return { success: false, message: "Anda bukan admin" };
-    }
-  })
   .get("/pgbo", async ({ query, set }) => {
     try {
       const search = query.search as string | undefined;
@@ -41,7 +22,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
           u.no_telpon, u.is_active, u.created_at
         FROM users u
       `;
-      const args: any[] = [];
+      const args: InValue[] = [];
 
       if (search) {
         const safeSearch = escapeFts(search);
@@ -63,7 +44,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         success: true,
         data: result.rows,
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error("GET /pgbo error:", error);
       set.status = 500;
       return { success: false, message: "Gagal mengambil data PGBO" };
@@ -78,7 +59,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
       }
 
       let sql = `SELECT id FROM users WHERE pageid = ?`;
-      let args: any[] = [pageid];
+      let args: InValue[] = [pageid];
 
       if (query.excludeId) {
         sql += ` AND id != ?`;
@@ -90,7 +71,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         success: true, 
         isAvailable: res.rows.length === 0 
       };
-    } catch (error: any) {
+    } catch (error) {
       set.status = 500;
       return { success: false, message: "Server error" };
     }
@@ -152,9 +133,10 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
           message: "PGBO berhasil didaftarkan",
           data: { id, pgcode, pageid },
         };
-      } catch (error: any) {
+      } catch (error) {
         set.status = 400;
-        const isDuplicate = error.message?.includes("UNIQUE constraint failed");
+        const msg = error instanceof Error ? error.message : "";
+        const isDuplicate = msg.includes("UNIQUE constraint failed");
         return {
           success: false,
           message: isDuplicate
@@ -226,7 +208,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         success: true,
         message: "Akun PGBO beserta data terkait telah dihapus permanen",
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error("### DELETE ERROR:", error);
       set.status = 500;
       return {
@@ -256,7 +238,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         message: newStatus ? "PGBO berhasil diaktifkan" : "PGBO berhasil dinonaktifkan",
         data: { is_active: newStatus },
       };
-    } catch (error: any) {
+    } catch (error) {
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan sistem" };
     }
@@ -269,7 +251,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
 
         // Build dynamic SET clause
         const fields: string[] = [];
-        const args: any[] = [];
+        const args: InValue[] = [];
 
         if (body.nama_lengkap !== undefined) {
           fields.push("nama_lengkap = ?");
@@ -339,9 +321,10 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
           success: true,
           message: "Data PGBO berhasil diperbarui",
         };
-      } catch (error: any) {
+      } catch (error) {
         set.status = 400;
-        const isDuplicate = error.message?.includes("UNIQUE constraint failed");
+        const msg = error instanceof Error ? error.message : "";
+        const isDuplicate = msg.includes("UNIQUE constraint failed");
         return {
           success: false,
           message: isDuplicate
@@ -383,7 +366,9 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         set.status = 400;
         return { success: false, message: "Kode rahasia minimal 3 karakter" };
       }
-      await updateSetting("portal_secret_code", code.trim());
+      // Sanitize: remove all domestic whitespace
+      const cleanCode = code.replace(/\s+/g, "");
+      await updateSetting("portal_secret_code", cleanCode);
       await updateSetting("portal_secret_auto_rotate", auto_rotate ? "true" : "false");
       return { success: true, message: "Kode rahasia berhasil diperbarui" };
     } catch (error) {
@@ -439,7 +424,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         success: true,
         message: `${deletedCount} PGBO berhasil dihapus`,
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error("### BULK DELETE ERROR:", error);
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan saat menghapus data" };
@@ -469,7 +454,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin" })
         success: true,
         message: `${ids.length} PGBO berhasil ${active ? "diaktifkan" : "dinonaktifkan"}`,
       };
-    } catch (error: any) {
+    } catch (error) {
       console.error("### BULK TOGGLE ERROR:", error);
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan saat mengubah status" };

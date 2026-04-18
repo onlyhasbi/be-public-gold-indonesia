@@ -1,3 +1,7 @@
+let cachedHtml = "";
+let lastFetchedTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Injects meta tags into an HTML template.
  */
@@ -9,17 +13,25 @@ export async function renderHtmlWithMeta(options: {
   pageid?: string;
 }) {
   try {
-    // 1. Fetch base index.html from production frontend
     const frontendUrl = Bun.env.FRONTEND_URL || "https://mypublicgold.id";
-    let html = "";
-    
-    try {
-      const response = await fetch(frontendUrl);
-      if (!response.ok) throw new Error(`Failed to fetch: ${response.statusText}`);
-      html = await response.text();
-    } catch (error) {
-      console.error("Failed to fetch base index.html from frontend:", error);
-      return "Error loading page template. Please try again later.";
+    let html = cachedHtml;
+    const now = Date.now();
+
+    // Fetch and cache if empty or expired
+    if (!html || now - lastFetchedTime > CACHE_TTL) {
+      try {
+        const response = await fetch(frontendUrl);
+        if (response.ok) {
+          html = await response.text();
+          cachedHtml = html;
+          lastFetchedTime = now;
+        } else if (!html) {
+          throw new Error(`Failed to fetch index.html: ${response.statusText}`);
+        }
+      } catch (error) {
+        console.error("Failed to fetch base index.html from frontend:", error);
+        if (!html) return "Error loading page template. Please try again later.";
+      }
     }
 
     // 2. Prepare Meta Tags
