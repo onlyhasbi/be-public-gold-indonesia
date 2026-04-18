@@ -3,7 +3,16 @@ import { GoldPrice, GoldPricesResult } from "../types/gold.ts";
 
 const PUBLIC_GOLD_URL = "https://publicgold.co.id/";
 
+// Cache logic
+let priceCache: { data: GoldPricesResult; timestamp: number } | null = null;
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
 export const fetchGoldPrices = async (): Promise<GoldPricesResult | null> => {
+  const now = Date.now();
+  if (priceCache && now - priceCache.timestamp < CACHE_TTL) {
+    return priceCache.data;
+  }
+
   try {
     const res = await fetch(PUBLIC_GOLD_URL, {
       headers: {
@@ -61,7 +70,7 @@ export const fetchGoldPrices = async (): Promise<GoldPricesResult | null> => {
       }
     });
 
-    return {
+    const result = {
       poe,
       dinar: allUnitPrices.filter(
         (g) => g.label.includes("Dinar") || g.label.includes("Dirham"),
@@ -74,6 +83,11 @@ export const fetchGoldPrices = async (): Promise<GoldPricesResult | null> => {
           (g.label.includes("gram") || g.label.includes("Gram")),
       ),
     };
+
+    // Update Cache
+    priceCache = { data: result, timestamp: Date.now() };
+
+    return result;
   } catch (error) {
     console.error("[GoldPriceService] Error scraping prices from HTML:", error);
     return null;

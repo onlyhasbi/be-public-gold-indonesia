@@ -32,9 +32,17 @@ export const publicRoutes = new Elysia({
   detail: { tags: ["Public"] },
 })
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
-  .get("/pgbo/:pageid", async ({ params, set }) => {
+  .state("agentCache", new Map<string, { data: any; timestamp: number }>())
+  .get("/pgbo/:pageid", async ({ params, set, store }) => {
     try {
       const pageid = params.pageid;
+      const now = Date.now();
+      const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
+
+      const cached = store.agentCache.get(pageid);
+      if (cached && now - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+      }
 
       const result = await db.execute({
         sql: `
@@ -54,10 +62,15 @@ export const publicRoutes = new Elysia({
         return { success: false, message: "Page ID tidak ditemukan" };
       }
 
-      return {
+      const response = {
         success: true,
         data: result.rows[0],
       };
+
+      // Update Cache
+      store.agentCache.set(pageid, { data: response, timestamp: now });
+
+      return response;
     } catch (error) {
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };

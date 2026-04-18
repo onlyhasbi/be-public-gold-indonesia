@@ -42,6 +42,9 @@ export async function renderHtmlWithMeta(options: {
     // 2. Prepare Preload Tags
     let preloadTags = "";
 
+    // Preload Fonts (Critical for CLS)
+    preloadTags += `<link rel="preload" href="https://fonts.gstatic.com/s/caveat/v18/Wn7xha5svzWvG2ER6V9Y9pAgf_o.woff2" as="font" type="font/woff2" crossorigin />\n`;
+
     // Preload Images (LCP)
     if (options.preloadImages) {
       options.preloadImages.forEach((img) => {
