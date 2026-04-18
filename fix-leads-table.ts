@@ -1,13 +1,14 @@
 import { createClient } from "@libsql/client";
 
 const url = "libsql://5gindonesia-onlyhasbi.aws-ap-northeast-1.turso.io";
-const authToken = "REDACTED_TURSO_TOKEN";
+const authToken =
+  "REDACTED_TURSO_TOKEN";
 const db = createClient({ url, authToken });
 
 async function main() {
   try {
     const res = await db.execute("PRAGMA table_info(leads);");
-    const columns = res.rows.map(r => r.name);
+    const columns = res.rows.map((r) => r.name);
     if (!columns.includes("agent_id")) {
       console.log("No agent_id found, already migrated.");
     } else {

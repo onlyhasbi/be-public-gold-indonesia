@@ -17,46 +17,55 @@ try {
 }
 
 const api = new Elysia({ prefix: "/api" })
-  .use(cors({
-    origin: (request) => {
-      const origin = request.headers.get("origin");
-      if (!origin) return false;
-      
-      // Parse allowed origins from environment variable (comma-separated)
-      const corsOriginEnv = Bun.env.CORS_ORIGIN || "http://localhost:5173";
-      const allowedOrigins = corsOriginEnv.split(",").map(o => o.trim());
-      
-      // Also include FRONTEND_URL if set separately
-      const frontendUrl = Bun.env.FRONTEND_URL;
-      if (frontendUrl && !allowedOrigins.includes(frontendUrl)) {
-        allowedOrigins.push(frontendUrl);
-        // Automatically add www version for production convenience
-        if (frontendUrl.startsWith("https://") && !frontendUrl.includes("www.")) {
-          allowedOrigins.push(frontendUrl.replace("https://", "https://www."));
+  .use(
+    cors({
+      origin: (request) => {
+        const origin = request.headers.get("origin");
+        if (!origin) return false;
+
+        // Parse allowed origins from environment variable (comma-separated)
+        const corsOriginEnv = Bun.env.CORS_ORIGIN || "http://localhost:5173";
+        const allowedOrigins = corsOriginEnv.split(",").map((o) => o.trim());
+
+        // Also include FRONTEND_URL if set separately
+        const frontendUrl = Bun.env.FRONTEND_URL;
+        if (frontendUrl && !allowedOrigins.includes(frontendUrl)) {
+          allowedOrigins.push(frontendUrl);
+          // Automatically add www version for production convenience
+          if (
+            frontendUrl.startsWith("https://") &&
+            !frontendUrl.includes("www.")
+          ) {
+            allowedOrigins.push(
+              frontendUrl.replace("https://", "https://www."),
+            );
+          }
         }
-      }
-      
-      // Direct match
-      if (allowedOrigins.includes(origin)) return true;
-      
-      // Dynamic allowance for Vercel preview deployments
-      if (/^https:\/\/.*-onlyhasbi\.vercel\.app$/.test(origin)) return true;
-      
-      return false;
-    },
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }))
-  .use(swagger({
-    documentation: {
-      info: {
-        title: "Public Gold Indonesia API",
-        version: "1.0.0",
-        description: "Dokumentasi API untuk PGBO Portal Management",
-      }
-    },
-    path: '/docs'
-  }))
+
+        // Direct match
+        if (allowedOrigins.includes(origin)) return true;
+
+        // Dynamic allowance for Vercel preview deployments
+        if (/^https:\/\/.*-onlyhasbi\.vercel\.app$/.test(origin)) return true;
+
+        return false;
+      },
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization"],
+    }),
+  )
+  .use(
+    swagger({
+      documentation: {
+        info: {
+          title: "Public Gold Indonesia API",
+          version: "1.0.0",
+          description: "Dokumentasi API untuk PGBO Portal Management",
+        },
+      },
+      path: "/docs",
+    }),
+  )
   // Security headers (XSS, clickjacking, MIME sniffing protection)
   .use(securityHeaders)
   // Global error handler — never leak internal errors to clients
@@ -91,7 +100,9 @@ const app = new Elysia()
 if (import.meta.main || !process.env.VERCEL) {
   const port = process.env.PORT || 3000;
   app.listen(port);
-  console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
+  console.log(
+    `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
+  );
 }
 
 export default app;

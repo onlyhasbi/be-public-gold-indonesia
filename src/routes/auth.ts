@@ -7,13 +7,16 @@ import { sanitizePGCode, sanitizePageId } from "../utils/sanitize";
 import type { InValue } from "@libsql/client";
 import type { UserRow } from "../types/db";
 
-export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"] } })
+export const authRoutes = new Elysia({
+  prefix: "/auth",
+  detail: { tags: ["Auth"] },
+})
   .use(
     jwt({
       name: "jwt",
       secret: Bun.env.JWT_SECRET || "REDACTED_JWT_SECRET",
       exp: "7d", // Token expires in 7 days
-    })
+    }),
   )
   .use(rateLimit({ max: 10, windowMs: 15 * 60 * 1000 }))
   .get("/check-pageid", async ({ query, set }) => {
@@ -28,9 +31,9 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
       let args: InValue[] = [pageid];
 
       const res = await db.execute({ sql, args });
-      return { 
-        success: true, 
-        isAvailable: res.rows.length === 0 
+      return {
+        success: true,
+        isAvailable: res.rows.length === 0,
       };
     } catch (error) {
       set.status = 500;
@@ -55,7 +58,7 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
         if (role === "admin") {
           const email = body.email;
           const secretCode = body.secretCode;
-          
+
           if (!email) {
             set.status = 400;
             return { success: false, message: "Email wajib diisi untuk admin" };
@@ -96,7 +99,15 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
 
           await db.execute({
             sql: `INSERT INTO users (id, role, pgcode, pageid, katasandi_hash, nama_lengkap, no_telpon) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            args: [id, "pgbo", pgcode, pageid, hashedPassword, namaLengkap, noTelpon],
+            args: [
+              id,
+              "pgbo",
+              pgcode,
+              pageid,
+              hashedPassword,
+              namaLengkap,
+              noTelpon,
+            ],
           });
 
           const token = await jwt.sign({ sub: pgcode, id, role: "pgbo" });
@@ -104,7 +115,13 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
             success: true,
             message: "Registrasi agen berhasil",
             token,
-            user: { id, pgcode, pageid, role: "pgbo", nama_lengkap: namaLengkap },
+            user: {
+              id,
+              pgcode,
+              pageid,
+              role: "pgbo",
+              nama_lengkap: namaLengkap,
+            },
           };
         }
       } catch (error) {
@@ -130,7 +147,7 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
         nama_lengkap: t.Optional(t.String()),
         no_telpon: t.String(),
       }),
-    }
+    },
   )
   .post(
     "/login",
@@ -168,7 +185,7 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
 
         const isMatch = await Bun.password.verify(
           katasandi,
-          user.katasandi_hash
+          user.katasandi_hash,
         );
         if (!isMatch) {
           set.status = 401;
@@ -177,10 +194,15 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
 
         // Sign token sub with the matched identifier
         // For Dealers (pgbo), we strictly use pgcode as sub to avoid identity mismatch
-        const token = await jwt.sign({ 
-          sub: (user.role === 'pgbo' ? user.pgcode : (user.email ? user.email : user.pgcode)) ?? undefined, 
+        const token = await jwt.sign({
+          sub:
+            (user.role === "pgbo"
+              ? user.pgcode
+              : user.email
+                ? user.email
+                : user.pgcode) ?? undefined,
           id: user.id,
-          role: user.role 
+          role: user.role,
         });
 
         // Strip katasandi_hash before sending to client
@@ -205,5 +227,5 @@ export const authRoutes = new Elysia({ prefix: "/auth", detail: { tags: ["Auth"]
         identifier: t.String(),
         katasandi: t.String(),
       }),
-    }
+    },
   );

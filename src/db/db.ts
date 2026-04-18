@@ -7,7 +7,9 @@ const authToken = Bun.env.TURSO_AUTH_TOKEN;
 
 // Validation for production environment
 if (Bun.env.NODE_ENV === "production" && !Bun.env.TURSO_DATABASE_URL) {
-  console.warn("⚠️ TURSO_DATABASE_URL is not set in production. Falling back to local file (which may fail in Serverless).");
+  console.warn(
+    "⚠️ TURSO_DATABASE_URL is not set in production. Falling back to local file (which may fail in Serverless).",
+  );
 }
 
 export const db = createClient({
@@ -49,16 +51,21 @@ export const setupDatabase = async () => {
   try {
     const columnsRes = await db.execute(`PRAGMA table_info(users)`);
     const kolom = columnsRes.rows.map((r) => String(r.name));
-    if (kolom.includes('google_refresh_token')) await db.execute(`ALTER TABLE users DROP COLUMN google_refresh_token`);
-    if(kolom.includes('google_access_token')) await db.execute(`ALTER TABLE users DROP COLUMN google_access_token`);
-    if(kolom.includes('google_token_expiry')) await db.execute(`ALTER TABLE users DROP COLUMN google_token_expiry`);
+    if (kolom.includes("google_refresh_token"))
+      await db.execute(`ALTER TABLE users DROP COLUMN google_refresh_token`);
+    if (kolom.includes("google_access_token"))
+      await db.execute(`ALTER TABLE users DROP COLUMN google_access_token`);
+    if (kolom.includes("google_token_expiry"))
+      await db.execute(`ALTER TABLE users DROP COLUMN google_token_expiry`);
   } catch (_e) {
-      console.log('Skipping column drop');
+    console.log("Skipping column drop");
   }
 
   // Migration: add user_id column to leads if it doesn't exist yet
   try {
-    await db.execute(`ALTER TABLE leads ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
+    await db.execute(
+      `ALTER TABLE leads ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`,
+    );
   } catch (_e) {
     // Column already exists or table doesn't exist yet — ignore
   }
@@ -72,7 +79,9 @@ export const setupDatabase = async () => {
 
   // Migration: add user_id column to analytics if it doesn't exist yet
   try {
-    await db.execute(`ALTER TABLE analytics ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`);
+    await db.execute(
+      `ALTER TABLE analytics ADD COLUMN user_id TEXT NOT NULL DEFAULT ''`,
+    );
   } catch (_e) {
     // Column already exists or table doesn't exist yet — ignore
   }
@@ -111,53 +120,81 @@ export const setupDatabase = async () => {
   `);
 
   // Initialize default settings if not exists
-  const checkSecret = await db.execute("SELECT value FROM system_settings WHERE key = 'portal_secret_code'");
+  const checkSecret = await db.execute(
+    "SELECT value FROM system_settings WHERE key = 'portal_secret_code'",
+  );
   if (checkSecret.rows.length === 0) {
     await db.execute({
       sql: "INSERT INTO system_settings (key, value) VALUES ('portal_secret_code', ?)",
-      args: [Bun.env.SECRET_CODE || "unlimited"]
+      args: [Bun.env.SECRET_CODE || "unlimited"],
     });
   }
-  
-  const checkRotation = await db.execute("SELECT value FROM system_settings WHERE key = 'last_rotation_date'");
+
+  const checkRotation = await db.execute(
+    "SELECT value FROM system_settings WHERE key = 'last_rotation_date'",
+  );
   if (checkRotation.rows.length === 0) {
     await db.execute({
       sql: "INSERT INTO system_settings (key, value) VALUES ('last_rotation_date', ?)",
-      args: [new Date().toISOString().split('T')[0]]
+      args: [new Date().toISOString().split("T")[0]],
     });
   }
 
   // --- FTS5 Indexing for 'users' (Admin Search) ---
-  await db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS users_fts USING fts5(id UNINDEXED, pgcode, nama_lengkap, pageid, tokenize='trigram')`);
+  await db.execute(
+    `CREATE VIRTUAL TABLE IF NOT EXISTS users_fts USING fts5(id UNINDEXED, pgcode, nama_lengkap, pageid, tokenize='trigram')`,
+  );
   // Populate users_fts if empty
   try {
-    const checkUsersFts = await db.execute(`SELECT COUNT(*) as count FROM users_fts`);
+    const checkUsersFts = await db.execute(
+      `SELECT COUNT(*) as count FROM users_fts`,
+    );
     if (checkUsersFts.rows[0].count === 0) {
-      await db.execute(`INSERT INTO users_fts(id, pgcode, nama_lengkap, pageid) SELECT id, pgcode, nama_lengkap, pageid FROM users`);
+      await db.execute(
+        `INSERT INTO users_fts(id, pgcode, nama_lengkap, pageid) SELECT id, pgcode, nama_lengkap, pageid FROM users`,
+      );
     }
   } catch (e) {
     console.error("Failed to populate users_fts:", e);
   }
   // Triggers for users_fts sync
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS users_ai AFTER INSERT ON users BEGIN INSERT INTO users_fts(id, pgcode, nama_lengkap, pageid) VALUES (new.id, new.pgcode, new.nama_lengkap, new.pageid); END;`);
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS users_ad AFTER DELETE ON users BEGIN DELETE FROM users_fts WHERE id = old.id; END;`);
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS users_au AFTER UPDATE ON users BEGIN UPDATE users_fts SET pgcode = new.pgcode, nama_lengkap = new.nama_lengkap, pageid = new.pageid WHERE id = old.id; END;`);
+  await db.execute(
+    `CREATE TRIGGER IF NOT EXISTS users_ai AFTER INSERT ON users BEGIN INSERT INTO users_fts(id, pgcode, nama_lengkap, pageid) VALUES (new.id, new.pgcode, new.nama_lengkap, new.pageid); END;`,
+  );
+  await db.execute(
+    `CREATE TRIGGER IF NOT EXISTS users_ad AFTER DELETE ON users BEGIN DELETE FROM users_fts WHERE id = old.id; END;`,
+  );
+  await db.execute(
+    `CREATE TRIGGER IF NOT EXISTS users_au AFTER UPDATE ON users BEGIN UPDATE users_fts SET pgcode = new.pgcode, nama_lengkap = new.nama_lengkap, pageid = new.pageid WHERE id = old.id; END;`,
+  );
 
   // --- FTS5 Indexing for 'leads' (Overview Search) ---
-  await db.execute(`CREATE VIRTUAL TABLE IF NOT EXISTS leads_fts USING fts5(id UNINDEXED, nama, branch, no_telpon, tokenize='trigram')`);
+  await db.execute(
+    `CREATE VIRTUAL TABLE IF NOT EXISTS leads_fts USING fts5(id UNINDEXED, nama, branch, no_telpon, tokenize='trigram')`,
+  );
   // Populate leads_fts if empty
   try {
-    const checkLeadsFts = await db.execute(`SELECT COUNT(*) as count FROM leads_fts`);
+    const checkLeadsFts = await db.execute(
+      `SELECT COUNT(*) as count FROM leads_fts`,
+    );
     if (checkLeadsFts.rows[0].count === 0) {
-      await db.execute(`INSERT INTO leads_fts(id, nama, branch, no_telpon) SELECT id, nama, branch, no_telpon FROM leads`);
+      await db.execute(
+        `INSERT INTO leads_fts(id, nama, branch, no_telpon) SELECT id, nama, branch, no_telpon FROM leads`,
+      );
     }
   } catch (e) {
     console.error("Failed to populate leads_fts:", e);
   }
   // Triggers for leads_fts sync
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS leads_ai AFTER INSERT ON leads BEGIN INSERT INTO leads_fts(id, nama, branch, no_telpon) VALUES (new.id, new.nama, new.branch, new.no_telpon); END;`);
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS leads_ad AFTER DELETE ON leads BEGIN DELETE FROM leads_fts WHERE id = old.id; END;`);
-  await db.execute(`CREATE TRIGGER IF NOT EXISTS leads_au AFTER UPDATE ON leads BEGIN UPDATE leads_fts SET nama = new.nama, branch = new.branch, no_telpon = new.no_telpon WHERE id = old.id; END;`);
+  await db.execute(
+    `CREATE TRIGGER IF NOT EXISTS leads_ai AFTER INSERT ON leads BEGIN INSERT INTO leads_fts(id, nama, branch, no_telpon) VALUES (new.id, new.nama, new.branch, new.no_telpon); END;`,
+  );
+  await db.execute(
+    `CREATE TRIGGER IF NOT EXISTS leads_ad AFTER DELETE ON leads BEGIN DELETE FROM leads_fts WHERE id = old.id; END;`,
+  );
+  await db.execute(
+    `CREATE TRIGGER IF NOT EXISTS leads_au AFTER UPDATE ON leads BEGIN UPDATE leads_fts SET nama = new.nama, branch = new.branch, no_telpon = new.no_telpon WHERE id = old.id; END;`,
+  );
 
   console.log("Database tables verified!");
 };

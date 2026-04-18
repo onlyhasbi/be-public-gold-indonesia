@@ -6,7 +6,10 @@ import { generateVCardFile } from "../utils/vcard_utils";
 import { escapeFts } from "../utils/sanitize";
 import type { InValue } from "@libsql/client";
 
-export const overviewRoutes = new Elysia({ prefix: "/overview", detail: { tags: ["Overview"] } })
+export const overviewRoutes = new Elysia({
+  prefix: "/overview",
+  detail: { tags: ["Overview"] },
+})
   .use(authGuard)
   // Rate limit: 60 requests per minute
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 }))
@@ -17,7 +20,7 @@ export const overviewRoutes = new Elysia({ prefix: "/overview", detail: { tags: 
         return { success: false, message: "Akses ditolak" };
       }
       const search = query.search as string | undefined;
-      
+
       // OPTIMIZATION: Use ID from JWT if available, else fallback to pgcode lookup
       let agentId = user.id;
       if (!agentId) {
@@ -83,116 +86,137 @@ export const overviewRoutes = new Elysia({ prefix: "/overview", detail: { tags: 
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
   })
-  .post("/leads/export-vcf", async ({ body, user, set }) => {
-    try {
-      const { ids } = body;
-      if (!ids || ids.length === 0) {
-        set.status = 400;
-        return { success: false, message: "Tidak ada kontak yang dipilih" };
-      }
-
-      if (!user) {
-        set.status = 401;
-        return { success: false, message: "Akses ditolak" };
-      }
-      let agentId = user.id;
-      if (!agentId) {
-        const agentRes = await db.execute({
-          sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-          args: [user.sub ?? ""],
-        });
-        if (agentRes.rows.length === 0) {
-          set.status = 404;
-          return { success: false, message: "Agent tidak ditemukan" };
+  .post(
+    "/leads/export-vcf",
+    async ({ body, user, set }) => {
+      try {
+        const { ids } = body;
+        if (!ids || ids.length === 0) {
+          set.status = 400;
+          return { success: false, message: "Tidak ada kontak yang dipilih" };
         }
-        agentId = String(agentRes.rows[0].id);
-      }
 
-      // Fetch leads data for the given ids
-      const placeholders = ids.map(() => "?").join(", ");
-      const leadsRes = await db.execute({
-        sql: `SELECT id, nama, branch, no_telpon FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
-        args: [agentId ?? "", ...ids],
-      });
-
-      if (leadsRes.rows.length === 0) {
-        set.status = 404;
-        return { success: false, message: "Tidak ada data pendaftar yang ditemukan" };
-      }
-
-      // Generate vCard file content
-      const vcfContent = generateVCardFile(
-        leadsRes.rows.map((lead) => ({
-          nama: lead.nama as string,
-          branch: lead.branch as string,
-          no_telpon: lead.no_telpon as string,
-        }))
-      );
-
-      // Mark all exported leads
-      for (const lead of leadsRes.rows) {
-        await db.execute({
-          sql: `UPDATE leads SET exported_at = CURRENT_TIMESTAMP WHERE id = ?`,
-          args: [lead.id],
-        });
-      }
-
-      // Return as downloadable .vcf file
-      set.headers["Content-Type"] = "text/vcard; charset=utf-8";
-      set.headers["Content-Disposition"] = `attachment; filename="kontak-pendaftar.vcf"`;
-      return vcfContent;
-    } catch (error) {
-      console.error("### EXPORT VCF ERROR:", error);
-      set.status = 500;
-      return { success: false, message: "Terjadi kesalahan saat mengekspor kontak" };
-    }
-  }, {
-    body: t.Object({
-      ids: t.Array(t.String())
-    })
-  })
-  .post("/leads/bulk-delete", async ({ body, user, set }) => {
-    try {
-      const { ids } = body;
-      if (!ids || ids.length === 0) {
-        set.status = 400;
-        return { success: false, message: "Tidak ada data yang dipilih" };
-      }
-
-      if (!user) {
-        set.status = 401;
-        return { success: false, message: "Akses ditolak" };
-      }
-      let agentId = user.id;
-      if (!agentId) {
-        const agentRes = await db.execute({
-          sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
-          args: [user.sub ?? ""],
-        });
-        if (agentRes.rows.length === 0) {
-          set.status = 404;
-          return { success: false, message: "Agent tidak ditemukan" };
+        if (!user) {
+          set.status = 401;
+          return { success: false, message: "Akses ditolak" };
         }
-        agentId = String(agentRes.rows[0].id);
+        let agentId = user.id;
+        if (!agentId) {
+          const agentRes = await db.execute({
+            sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+            args: [user.sub ?? ""],
+          });
+          if (agentRes.rows.length === 0) {
+            set.status = 404;
+            return { success: false, message: "Agent tidak ditemukan" };
+          }
+          agentId = String(agentRes.rows[0].id);
+        }
+
+        // Fetch leads data for the given ids
+        const placeholders = ids.map(() => "?").join(", ");
+        const leadsRes = await db.execute({
+          sql: `SELECT id, nama, branch, no_telpon FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
+          args: [agentId ?? "", ...ids],
+        });
+
+        if (leadsRes.rows.length === 0) {
+          set.status = 404;
+          return {
+            success: false,
+            message: "Tidak ada data pendaftar yang ditemukan",
+          };
+        }
+
+        // Generate vCard file content
+        const vcfContent = generateVCardFile(
+          leadsRes.rows.map((lead) => ({
+            nama: lead.nama as string,
+            branch: lead.branch as string,
+            no_telpon: lead.no_telpon as string,
+          })),
+        );
+
+        // Mark all exported leads
+        for (const lead of leadsRes.rows) {
+          await db.execute({
+            sql: `UPDATE leads SET exported_at = CURRENT_TIMESTAMP WHERE id = ?`,
+            args: [lead.id],
+          });
+        }
+
+        // Return as downloadable .vcf file
+        set.headers["Content-Type"] = "text/vcard; charset=utf-8";
+        set.headers["Content-Disposition"] =
+          `attachment; filename="kontak-pendaftar.vcf"`;
+        return vcfContent;
+      } catch (error) {
+        console.error("### EXPORT VCF ERROR:", error);
+        set.status = 500;
+        return {
+          success: false,
+          message: "Terjadi kesalahan saat mengekspor kontak",
+        };
       }
+    },
+    {
+      body: t.Object({
+        ids: t.Array(t.String()),
+      }),
+    },
+  )
+  .post(
+    "/leads/bulk-delete",
+    async ({ body, user, set }) => {
+      try {
+        const { ids } = body;
+        if (!ids || ids.length === 0) {
+          set.status = 400;
+          return { success: false, message: "Tidak ada data yang dipilih" };
+        }
 
-      const placeholders = ids.map(() => "?").join(", ");
-      const result = await db.execute({
-        sql: `DELETE FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
-        args: [agentId ?? "", ...ids],
-      });
+        if (!user) {
+          set.status = 401;
+          return { success: false, message: "Akses ditolak" };
+        }
+        let agentId = user.id;
+        if (!agentId) {
+          const agentRes = await db.execute({
+            sql: `SELECT id FROM users WHERE UPPER(pgcode) = UPPER(?)`,
+            args: [user.sub ?? ""],
+          });
+          if (agentRes.rows.length === 0) {
+            set.status = 404;
+            return { success: false, message: "Agent tidak ditemukan" };
+          }
+          agentId = String(agentRes.rows[0].id);
+        }
 
-      return { success: true, message: `${result.rowsAffected} pendaftar berhasil dihapus` };
-    } catch (error) {
-      console.error("### BULK DELETE LEAD ERROR:", error);
-      set.status = 500;
-      return { success: false, message: "Terjadi kesalahan saat menghapus data" };
-    }
-  }, {
-    body: t.Object({
-      ids: t.Array(t.String())
-    })
-  })
+        const placeholders = ids.map(() => "?").join(", ");
+        const result = await db.execute({
+          sql: `DELETE FROM leads WHERE user_id = ? AND id IN (${placeholders})`,
+          args: [agentId ?? "", ...ids],
+        });
+
+        return {
+          success: true,
+          message: `${result.rowsAffected} pendaftar berhasil dihapus`,
+        };
+      } catch (error) {
+        console.error("### BULK DELETE LEAD ERROR:", error);
+        set.status = 500;
+        return {
+          success: false,
+          message: "Terjadi kesalahan saat menghapus data",
+        };
+      }
+    },
+    {
+      body: t.Object({
+        ids: t.Array(t.String()),
+      }),
+    },
+  )
   .delete("/leads/:id", async ({ params, user, set }) => {
     try {
       if (!user) {
@@ -226,6 +250,9 @@ export const overviewRoutes = new Elysia({ prefix: "/overview", detail: { tags: 
     } catch (error) {
       console.error("### DELETE LEAD ERROR:", error);
       set.status = 500;
-      return { success: false, message: "Terjadi kesalahan saat menghapus data" };
+      return {
+        success: false,
+        message: "Terjadi kesalahan saat menghapus data",
+      };
     }
   });

@@ -30,7 +30,8 @@ export async function renderHtmlWithMeta(options: {
         }
       } catch (error) {
         console.error("Failed to fetch base index.html from frontend:", error);
-        if (!html) return "Error loading page template. Please try again later.";
+        if (!html)
+          return "Error loading page template. Please try again later.";
       }
     }
 
@@ -55,7 +56,10 @@ export async function renderHtmlWithMeta(options: {
     html = html.replace(/<meta[^>]*property=["']og:[^>]*>/gi, "");
     html = html.replace(/<meta[^>]*name=["']twitter:[^>]*>/gi, "");
     html = html.replace(/<link[^>]*rel=["']canonical["'][^>]*>/gi, "");
-    html = html.replace("<head>", `<head>\n<link rel="canonical" href="${frontendUrl}${options.url}" />\n${metaTags}`);
+    html = html.replace(
+      "<head>",
+      `<head>\n<link rel="canonical" href="${frontendUrl}${options.url}" />\n${metaTags}`,
+    );
 
     return html;
   } catch (error) {

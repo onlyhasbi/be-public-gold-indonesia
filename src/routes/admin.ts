@@ -3,14 +3,22 @@ import { db } from "../db/db";
 import { adminGuard } from "../middleware/auth";
 import { rateLimit } from "../middleware/rateLimit";
 import { randomUUID } from "node:crypto";
-import { sanitizePGCode, sanitizePageId, validateImageFile, escapeFts } from "../utils/sanitize";
+import {
+  sanitizePGCode,
+  sanitizePageId,
+  validateImageFile,
+  escapeFts,
+} from "../utils/sanitize";
 import cloudinary from "../config/cloudinary";
 import { processImage } from "../utils/imageProcessor";
 import { getSetting, updateSetting } from "../utils/settings";
 import type { InValue } from "@libsql/client";
 import type { UserRow } from "../types/db";
 
-export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admin"] } })
+export const adminRoutes = new Elysia({
+  prefix: "/admin",
+  detail: { tags: ["Admin"] },
+})
   .use(adminGuard)
   .use(rateLimit({ max: 30, windowMs: 15 * 60 * 1000 }))
   .get("/pgbo", async ({ query, set }) => {
@@ -67,9 +75,9 @@ export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admi
       }
 
       const res = await db.execute({ sql, args });
-      return { 
-        success: true, 
-        isAvailable: res.rows.length === 0 
+      return {
+        success: true,
+        isAvailable: res.rows.length === 0,
       };
     } catch (error) {
       set.status = 500;
@@ -154,7 +162,7 @@ export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admi
         no_telpon: t.String({ maxLength: 20 }),
         foto_profil: t.Optional(t.File({ maxSize: "2m" })),
       }),
-    }
+    },
   )
   .delete("/pgbo/:id", async ({ params, set }) => {
     try {
@@ -235,7 +243,9 @@ export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admi
       const newStatus = result.rows[0].is_active;
       return {
         success: true,
-        message: newStatus ? "PGBO berhasil diaktifkan" : "PGBO berhasil dinonaktifkan",
+        message: newStatus
+          ? "PGBO berhasil diaktifkan"
+          : "PGBO berhasil dinonaktifkan",
         data: { is_active: newStatus },
       };
     } catch (error) {
@@ -261,7 +271,10 @@ export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admi
           const pgcode = sanitizePGCode(body.pgcode);
           if (!pgcode || pgcode.length < 3) {
             set.status = 400;
-            return { success: false, message: "PGCode tidak valid (min 3 karakter)" };
+            return {
+              success: false,
+              message: "PGCode tidak valid (min 3 karakter)",
+            };
           }
           fields.push("pgcode = ?");
           args.push(pgcode);
@@ -270,7 +283,10 @@ export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admi
           const pageid = sanitizePageId(body.pageid);
           if (!pageid || pageid.length < 3) {
             set.status = 400;
-            return { success: false, message: "Page ID tidak valid (min 3 karakter)" };
+            return {
+              success: false,
+              message: "Page ID tidak valid (min 3 karakter)",
+            };
           }
           fields.push("pageid = ?");
           args.push(pageid);
@@ -341,127 +357,151 @@ export const adminRoutes = new Elysia({ prefix: "/admin", detail: { tags: ["Admi
         no_telpon: t.Optional(t.String({ maxLength: 20 })),
         foto_profil: t.Optional(t.File({ maxSize: "2m" })),
       }),
-    }
+    },
   )
   .get("/settings/secret-code", async ({ set }) => {
     try {
       const code = await getSetting("portal_secret_code");
       const autoRotate = await getSetting("portal_secret_auto_rotate");
-      return { 
-        success: true, 
-        data: { 
-          code, 
-          auto_rotate: autoRotate === "true" 
-        } 
+      return {
+        success: true,
+        data: {
+          code,
+          auto_rotate: autoRotate === "true",
+        },
       };
     } catch (error) {
       set.status = 500;
       return { success: false, message: "Gagal mengambil kode rahasia" };
     }
   })
-  .patch("/settings/secret-code", async ({ body, set }) => {
-    try {
-      const { code, auto_rotate } = body;
-      if (!code || code.trim().length < 3) {
-        set.status = 400;
-        return { success: false, message: "Kode rahasia minimal 3 karakter" };
+  .patch(
+    "/settings/secret-code",
+    async ({ body, set }) => {
+      try {
+        const { code, auto_rotate } = body;
+        if (!code || code.trim().length < 3) {
+          set.status = 400;
+          return { success: false, message: "Kode rahasia minimal 3 karakter" };
+        }
+        // Sanitize: remove all domestic whitespace
+        const cleanCode = code.replace(/\s+/g, "");
+        await updateSetting("portal_secret_code", cleanCode);
+        await updateSetting(
+          "portal_secret_auto_rotate",
+          auto_rotate ? "true" : "false",
+        );
+        return { success: true, message: "Kode rahasia berhasil diperbarui" };
+      } catch (error) {
+        set.status = 500;
+        return { success: false, message: "Gagal memperbarui kode rahasia" };
       }
-      // Sanitize: remove all domestic whitespace
-      const cleanCode = code.replace(/\s+/g, "");
-      await updateSetting("portal_secret_code", cleanCode);
-      await updateSetting("portal_secret_auto_rotate", auto_rotate ? "true" : "false");
-      return { success: true, message: "Kode rahasia berhasil diperbarui" };
-    } catch (error) {
-      set.status = 500;
-      return { success: false, message: "Gagal memperbarui kode rahasia" };
-    }
-  }, {
-    body: t.Object({
-      code: t.String(),
-      auto_rotate: t.Boolean()
-    })
-  })
-  .post("/pgbo/bulk-delete", async ({ body, set }) => {
-    try {
-      const { ids } = body;
-      if (!ids || ids.length === 0) {
-        set.status = 400;
-        return { success: false, message: "Tidak ada ID yang dipilih" };
-      }
-
-      // For each id, delete leads, analytics, cloudinary photo, then user
-      let deletedCount = 0;
-      for (const id of ids) {
-        // Fetch photo URL
-        const userRes = await db.execute({
-          sql: `SELECT foto_profil_url FROM users WHERE id = ? AND role = 'pgbo'`,
-          args: [id],
-        });
-
-        const photoUrl = userRes.rows[0]?.foto_profil_url as string | null;
-        if (photoUrl && photoUrl.includes("cloudinary")) {
-          try {
-            const parts = photoUrl.split("/");
-            const folder = parts[parts.length - 2];
-            const fileWithExt = parts[parts.length - 1];
-            const publicId = `${folder}/${fileWithExt.split(".")[0]}`;
-            await cloudinary.uploader.destroy(publicId);
-          } catch (cloudErr) {
-            console.warn("Cloudinary cleanup failed:", cloudErr);
-          }
+    },
+    {
+      body: t.Object({
+        code: t.String(),
+        auto_rotate: t.Boolean(),
+      }),
+    },
+  )
+  .post(
+    "/pgbo/bulk-delete",
+    async ({ body, set }) => {
+      try {
+        const { ids } = body;
+        if (!ids || ids.length === 0) {
+          set.status = 400;
+          return { success: false, message: "Tidak ada ID yang dipilih" };
         }
 
-        const results = await db.batch([
-          { sql: `DELETE FROM leads WHERE user_id = ?`, args: [id] },
-          { sql: `DELETE FROM analytics WHERE user_id = ?`, args: [id] },
-          { sql: `DELETE FROM users WHERE id = ? AND role = 'pgbo'`, args: [id] },
-        ]);
+        // For each id, delete leads, analytics, cloudinary photo, then user
+        let deletedCount = 0;
+        for (const id of ids) {
+          // Fetch photo URL
+          const userRes = await db.execute({
+            sql: `SELECT foto_profil_url FROM users WHERE id = ? AND role = 'pgbo'`,
+            args: [id],
+          });
 
-        if (results[2].rowsAffected > 0) deletedCount++;
+          const photoUrl = userRes.rows[0]?.foto_profil_url as string | null;
+          if (photoUrl && photoUrl.includes("cloudinary")) {
+            try {
+              const parts = photoUrl.split("/");
+              const folder = parts[parts.length - 2];
+              const fileWithExt = parts[parts.length - 1];
+              const publicId = `${folder}/${fileWithExt.split(".")[0]}`;
+              await cloudinary.uploader.destroy(publicId);
+            } catch (cloudErr) {
+              console.warn("Cloudinary cleanup failed:", cloudErr);
+            }
+          }
+
+          const results = await db.batch([
+            { sql: `DELETE FROM leads WHERE user_id = ?`, args: [id] },
+            { sql: `DELETE FROM analytics WHERE user_id = ?`, args: [id] },
+            {
+              sql: `DELETE FROM users WHERE id = ? AND role = 'pgbo'`,
+              args: [id],
+            },
+          ]);
+
+          if (results[2].rowsAffected > 0) deletedCount++;
+        }
+
+        return {
+          success: true,
+          message: `${deletedCount} PGBO berhasil dihapus`,
+        };
+      } catch (error) {
+        console.error("### BULK DELETE ERROR:", error);
+        set.status = 500;
+        return {
+          success: false,
+          message: "Terjadi kesalahan saat menghapus data",
+        };
       }
+    },
+    {
+      body: t.Object({
+        ids: t.Array(t.String()),
+      }),
+    },
+  )
+  .patch(
+    "/pgbo/bulk-toggle",
+    async ({ body, set }) => {
+      try {
+        const { ids, active } = body;
+        if (!ids || ids.length === 0) {
+          set.status = 400;
+          return { success: false, message: "Tidak ada ID yang dipilih" };
+        }
 
-      return {
-        success: true,
-        message: `${deletedCount} PGBO berhasil dihapus`,
-      };
-    } catch (error) {
-      console.error("### BULK DELETE ERROR:", error);
-      set.status = 500;
-      return { success: false, message: "Terjadi kesalahan saat menghapus data" };
-    }
-  }, {
-    body: t.Object({
-      ids: t.Array(t.String())
-    })
-  })
-  .patch("/pgbo/bulk-toggle", async ({ body, set }) => {
-    try {
-      const { ids, active } = body;
-      if (!ids || ids.length === 0) {
-        set.status = 400;
-        return { success: false, message: "Tidak ada ID yang dipilih" };
+        const newStatus = active ? 1 : 0;
+        const statements = ids.map((id: string) => ({
+          sql: `UPDATE users SET is_active = ? WHERE id = ? AND role = 'pgbo'`,
+          args: [newStatus, id],
+        }));
+
+        await db.batch(statements);
+
+        return {
+          success: true,
+          message: `${ids.length} PGBO berhasil ${active ? "diaktifkan" : "dinonaktifkan"}`,
+        };
+      } catch (error) {
+        console.error("### BULK TOGGLE ERROR:", error);
+        set.status = 500;
+        return {
+          success: false,
+          message: "Terjadi kesalahan saat mengubah status",
+        };
       }
-
-      const newStatus = active ? 1 : 0;
-      const statements = ids.map((id: string) => ({
-        sql: `UPDATE users SET is_active = ? WHERE id = ? AND role = 'pgbo'`,
-        args: [newStatus, id],
-      }));
-
-      await db.batch(statements);
-
-      return {
-        success: true,
-        message: `${ids.length} PGBO berhasil ${active ? "diaktifkan" : "dinonaktifkan"}`,
-      };
-    } catch (error) {
-      console.error("### BULK TOGGLE ERROR:", error);
-      set.status = 500;
-      return { success: false, message: "Terjadi kesalahan saat mengubah status" };
-    }
-  }, {
-    body: t.Object({
-      ids: t.Array(t.String()),
-      active: t.Boolean()
-    })
-  });
+    },
+    {
+      body: t.Object({
+        ids: t.Array(t.String()),
+        active: t.Boolean(),
+      }),
+    },
+  );

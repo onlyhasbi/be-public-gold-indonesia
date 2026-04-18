@@ -5,10 +5,12 @@ import { randomUUID } from "node:crypto";
 import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
 import type { UserRow } from "../types/db";
 
-
 import { renderHtmlWithMeta } from "../utils/seo";
 
-export const publicRoutes = new Elysia({ prefix: "/public", detail: { tags: ["Public"] } })
+export const publicRoutes = new Elysia({
+  prefix: "/public",
+  detail: { tags: ["Public"] },
+})
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
   .get("/pgbo/:pageid", async ({ params, set }) => {
     try {
@@ -134,9 +136,9 @@ export const publicRoutes = new Elysia({ prefix: "/public", detail: { tags: ["Pu
       // Handle both JSON body (axios) and text/plain body (sendBeacon)
       let data: { pageid?: string; event?: string } | null = null;
       if (typeof body === "string") {
-        try { 
-          data = JSON.parse(body); 
-        } catch { 
+        try {
+          data = JSON.parse(body);
+        } catch {
           set.status = 400;
           return { success: false, message: "Invalid body" };
         }
@@ -149,7 +151,7 @@ export const publicRoutes = new Elysia({ prefix: "/public", detail: { tags: ["Pu
         set.status = 400;
         return { success: false, message: "Missing pageid or event" };
       }
-      
+
       // Get agent internal ID (using index on pageid)
       const agentRes = await db.execute({
         sql: `SELECT id FROM users WHERE pageid = ? AND is_active = 1 LIMIT 1`,
@@ -177,70 +179,80 @@ export const publicRoutes = new Elysia({ prefix: "/public", detail: { tags: ["Pu
       return { success: false, message: msg };
     }
   })
-  .post("/portal/verify", async ({ body, set }) => {
-    try {
-      await rotateSecretIfNeeded();
-      
-      const { code } = body;
-      
-      // Ultra-robust normalization: keep ONLY letters and numbers
-      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-      
-      const rawSecret = await getSetting("portal_secret_code");
-      
-      const normalizedInput = normalize(code ?? "");
-      const normalizedSecret = normalize(rawSecret ?? '');
-      
-      if(normalizedInput === normalizedSecret) {
-        return { success: true };
-      } else {
-        set.status = 401;
-        return { success: false, message: "Kode rahasia tidak valid" };
+  .post(
+    "/portal/verify",
+    async ({ body, set }) => {
+      try {
+        await rotateSecretIfNeeded();
+
+        const { code } = body;
+
+        // Ultra-robust normalization: keep ONLY letters and numbers
+        const normalize = (s: string) =>
+          s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+        const rawSecret = await getSetting("portal_secret_code");
+
+        const normalizedInput = normalize(code ?? "");
+        const normalizedSecret = normalize(rawSecret ?? "");
+
+        if (normalizedInput === normalizedSecret) {
+          return { success: true };
+        } else {
+          set.status = 401;
+          return { success: false, message: "Kode rahasia tidak valid" };
+        }
+      } catch (error) {
+        set.status = 500;
+        return { success: false, message: "Terjadi kesalahan pada server" };
       }
-    } catch (error) {
-      set.status = 500;
-      return { success: false, message: "Terjadi kesalahan pada server" };
-    }
-  }, {
-    body: t.Object({
-      code: t.String()
-    })
-  })
-  .post("/register-track", async ({ body, set }) => {
-    try {
-      const { pageid, nama, branch, no_telpon } = body;
-      
-      // Get agent internal ID (indexed lookup)
-      const agentRes = await db.execute({
-        sql: `SELECT id FROM users WHERE pageid = ? AND is_active = 1 LIMIT 1`,
-        args: [pageid],
-      });
+    },
+    {
+      body: t.Object({
+        code: t.String(),
+      }),
+    },
+  )
+  .post(
+    "/register-track",
+    async ({ body, set }) => {
+      try {
+        const { pageid, nama, branch, no_telpon } = body;
 
-      if (agentRes.rows.length === 0) {
-        set.status = 404;
-        return { success: false, message: "Agent tidak ditemukan" };
+        // Get agent internal ID (indexed lookup)
+        const agentRes = await db.execute({
+          sql: `SELECT id FROM users WHERE pageid = ? AND is_active = 1 LIMIT 1`,
+          args: [pageid],
+        });
+
+        if (agentRes.rows.length === 0) {
+          set.status = 404;
+          return { success: false, message: "Agent tidak ditemukan" };
+        }
+
+        const agentId = agentRes.rows[0].id as string;
+        const id = randomUUID();
+
+        await db.execute({
+          sql: `INSERT INTO leads (id, user_id, nama, branch, no_telpon) VALUES (?, ?, ?, ?, ?)`,
+          args: [id, agentId, nama, branch, no_telpon],
+        });
+
+        return { success: true, message: "Lead tracked successfully" };
+      } catch (error) {
+        console.error("[Register Track Error]", error);
+        set.status = 500;
+        const msg =
+          error instanceof Error ? error.message : "Terjadi kesalahan";
+        return { success: false, message: msg };
       }
-
-      const agentId = agentRes.rows[0].id as string;
-      const id = randomUUID();
-
-      await db.execute({
-        sql: `INSERT INTO leads (id, user_id, nama, branch, no_telpon) VALUES (?, ?, ?, ?, ?)`,
-        args: [id, agentId, nama, branch, no_telpon],
-      });
-
-      return { success: true, message: "Lead tracked successfully" };
-    } catch (error) {
-      console.error("[Register Track Error]", error);
-      set.status = 500;
-      const msg = error instanceof Error ? error.message : "Terjadi kesalahan";
-      return { success: false, message: msg };
-    }
-  }, {
-    body: t.Object({
-      pageid: t.String(),
-      nama: t.String(),
-      branch: t.String(),
-      no_telpon: t.String()
-    })
-  });
+    },
+    {
+      body: t.Object({
+        pageid: t.String(),
+        nama: t.String(),
+        branch: t.String(),
+        no_telpon: t.String(),
+      }),
+    },
+  );

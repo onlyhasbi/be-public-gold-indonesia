@@ -1,5 +1,8 @@
-const fs = require('fs');
-const html = fs.readFileSync('/Users/onlyhasbi/Documents/Project/Public Gold/frontend-pg/index.html', 'utf8');
+const fs = require("fs");
+const html = fs.readFileSync(
+  "/Users/onlyhasbi/Documents/Project/Public Gold/frontend-pg/index.html",
+  "utf8",
+);
 
 let newHtml = html;
 newHtml = newHtml.replace(/<title>[\s\S]*?<\/title>/gi, "");

@@ -12,7 +12,10 @@ import {
 import { processImage } from "../utils/imageProcessor";
 import type { InValue } from "@libsql/client";
 
-export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: ["Settings"] } })
+export const settingsRoutes = new Elysia({
+  prefix: "/settings",
+  detail: { tags: ["Settings"] },
+})
   .use(authGuard)
   // General rate limit: 30 requests per minute
   .use(rateLimit({ max: 30, windowMs: 60 * 1000 }))
@@ -90,9 +93,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
           ? sanitizeString(body.nama_panggilan)
           : null;
         const email = body.email ? sanitizeString(body.email) : null;
-        const noTelpon = body.no_telpon
-          ? sanitizeString(body.no_telpon)
-          : null;
+        const noTelpon = body.no_telpon ? sanitizeString(body.no_telpon) : null;
         const linkWa = body.link_group_whatsapp
           ? sanitizeString(body.link_group_whatsapp)
           : null;
@@ -148,7 +149,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
         ];
 
         if (!user.id) {
-          updateSql = updateSql.replace("WHERE id = ?", "WHERE UPPER(pgcode) = UPPER(?)");
+          updateSql = updateSql.replace(
+            "WHERE id = ?",
+            "WHERE UPPER(pgcode) = UPPER(?)",
+          );
           updateArgs[9] = user.sub ?? "";
         }
 
@@ -156,7 +160,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
 
         // Re-query updated data for client-side localStorage sync
         const updatedRes = await db.execute({
-          sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE ${user.id ? 'id = ?' : 'UPPER(pgcode) = UPPER(?)'}`,
+          sql: `SELECT pgcode, pageid, foto_profil_url, nama_lengkap, nama_panggilan, email, no_telpon, link_group_whatsapp, sosmed_facebook, sosmed_instagram, sosmed_tiktok FROM users WHERE ${user.id ? "id = ?" : "UPPER(pgcode) = UPPER(?)"}`,
           args: [user.id || user.sub || ""],
         });
 
@@ -183,7 +187,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
         sosmed_instagram: t.Optional(t.String({ maxLength: 500 })),
         sosmed_tiktok: t.Optional(t.String({ maxLength: 500 })),
       }),
-    }
+    },
   )
   .patch(
     "/password",
@@ -198,7 +202,7 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
 
         // Fetch user password hash
         const userRes = await db.execute({
-          sql: user.id 
+          sql: user.id
             ? `SELECT katasandi_hash FROM users WHERE id = ?`
             : `SELECT katasandi_hash FROM users WHERE UPPER(pgcode) = UPPER(?)`,
           args: [user.id || user.sub || ""],
@@ -210,7 +214,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
         }
 
         const userRecord = userRes.rows[0];
-        const isMatch = await Bun.password.verify(katasandi_lama, userRecord.katasandi_hash as string);
+        const isMatch = await Bun.password.verify(
+          katasandi_lama,
+          userRecord.katasandi_hash as string,
+        );
 
         if (!isMatch) {
           set.status = 401;
@@ -219,7 +226,10 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
 
         if (katasandi_baru.length < 6) {
           set.status = 400;
-          return { success: false, message: "Kata sandi baru minimal 6 karakter" };
+          return {
+            success: false,
+            message: "Kata sandi baru minimal 6 karakter",
+          };
         }
 
         const newHash = await Bun.password.hash(katasandi_baru);
@@ -241,5 +251,5 @@ export const settingsRoutes = new Elysia({ prefix: "/settings", detail: { tags: 
         katasandi_lama: t.String(),
         katasandi_baru: t.String({ minLength: 6 }),
       }),
-    }
+    },
   );

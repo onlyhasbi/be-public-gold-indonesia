@@ -4,7 +4,9 @@ import { db } from "../src/db/db";
 async function setupAdmin() {
   const args = Bun.argv.slice(2);
   if (args.length < 2) {
-    console.error("Usage: bun run scripts/setup-admin.ts <username> <password>");
+    console.error(
+      "Usage: bun run scripts/setup-admin.ts <username> <password>",
+    );
     process.exit(1);
   }
 
@@ -25,7 +27,9 @@ async function setupAdmin() {
     console.log("✅ Super Admin berhasil ditambahkan ke database!");
   } catch (error: any) {
     if (error.message?.includes("UNIQUE constraint failed")) {
-      console.error("❌ Error: Username tersebut sudah terdaftar sebagai super admin.");
+      console.error(
+        "❌ Error: Username tersebut sudah terdaftar sebagai super admin.",
+      );
     } else {
       console.error("❌ Error:", error.message);
     }

@@ -1,4 +1,3 @@
-
 import { createClient } from "@libsql/client";
 
 const db = createClient({
@@ -16,7 +15,7 @@ async function checkUser() {
   process.exit(0);
 }
 
-checkUser().catch(err => {
+checkUser().catch((err) => {
   console.error(err);
   process.exit(1);
 });

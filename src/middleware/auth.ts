@@ -18,10 +18,12 @@ interface JWTPayload {
 export const authGuard = (app: Elysia) =>
   app
     .use(jwtPlugin)
-    .derive({ as: 'global' }, async ({ headers, jwt }) => {
+    .derive({ as: "global" }, async ({ headers, jwt }) => {
       const authHeader = headers["authorization"];
-      let token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-      if (token) token = token.replace(/^"|"$/g, '');
+      let token = authHeader?.startsWith("Bearer ")
+        ? authHeader.slice(7)
+        : null;
+      if (token) token = token.replace(/^"|"$/g, "");
 
       if (!token) {
         return { user: null as JWTPayload | null, unauthorized: true };
@@ -33,12 +35,12 @@ export const authGuard = (app: Elysia) =>
       }
 
       // Explicitly return auth context
-      return { 
-        user: payload as unknown as JWTPayload, 
-        unauthorized: false 
+      return {
+        user: payload as unknown as JWTPayload,
+        unauthorized: false,
       };
     })
-    .onBeforeHandle({ as: 'global' }, ({ unauthorized, set }) => {
+    .onBeforeHandle({ as: "global" }, ({ unauthorized, set }) => {
       if (unauthorized) {
         set.status = 401;
         return { success: false, message: "Akses ditolak" };
@@ -49,12 +51,9 @@ export const authGuard = (app: Elysia) =>
  * Guard specifically for admin-only routes.
  */
 export const adminGuard = (app: Elysia) =>
-  app
-    .use(authGuard)
-    .onBeforeHandle({ as: 'global' }, ({ user, set }) => {
-      if (!user || user.role !== "admin") {
-        set.status = 401;
-        return { success: false, message: "Anda bukan admin" };
-      }
-    });
-
+  app.use(authGuard).onBeforeHandle({ as: "global" }, ({ user, set }) => {
+    if (!user || user.role !== "admin") {
+      set.status = 401;
+      return { success: false, message: "Anda bukan admin" };
+    }
+  });

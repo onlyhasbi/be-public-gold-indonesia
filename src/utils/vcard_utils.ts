@@ -27,7 +27,9 @@ const escapeVCardValue = (value: string): string => {
 const generateSingleVCard = (lead: LeadData): string => {
   const displayName = escapeVCardValue(`Cust. ${lead.nama} ${lead.branch}`);
   const org = escapeVCardValue(`Public Gold (${lead.branch})`);
-  const note = escapeVCardValue(`Pendaftar via Agent Portal - Branch: ${lead.branch}`);
+  const note = escapeVCardValue(
+    `Pendaftar via Agent Portal - Branch: ${lead.branch}`,
+  );
 
   return [
     "BEGIN:VCARD",

@@ -32,11 +32,11 @@ export const escapeFts = (query: string): string => {
   // Remove special characters that can break FTS parser
   const cleaned = query.replace(/[^a-zA-Z0-9\s]/g, "").trim();
   if (!cleaned) return "";
-  
+
   // Split into words and quote each to prevent syntax errors
   // Example: "john doe" -> '"john" AND "doe"'
   const words = cleaned.split(/\s+/);
-  return words.map(word => `"${word}"`).join(" AND ");
+  return words.map((word) => `"${word}"`).join(" AND ");
 };
 
 /** Validate email format */
@@ -75,7 +75,7 @@ export const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
 /** Validate uploaded file */
 export const validateImageFile = (
-  file: File
+  file: File,
 ): { valid: boolean; error?: string } => {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
     return {

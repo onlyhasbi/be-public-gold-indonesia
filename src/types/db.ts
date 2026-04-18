@@ -1,6 +1,6 @@
 export interface UserRow {
   id: string;
-  role: 'admin' | 'pgbo';
+  role: "admin" | "pgbo";
   pgcode: string | null;
   email: string | null;
   katasandi_hash: string;
