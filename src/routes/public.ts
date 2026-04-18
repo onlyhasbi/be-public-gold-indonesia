@@ -8,6 +8,17 @@ import type { UserRow } from "../types/db";
 import { renderHtmlWithMeta } from "../utils/seo";
 import { fetchGoldPrices } from "../services/goldPriceService";
 
+// Helper to match frontend Cloudinary optimization logic
+const optimizeImageUrl = (url: string | null | undefined, width = 600): string => {
+  if (!url) return "";
+  if (url.includes("res.cloudinary.com") || url.startsWith("/") || url.startsWith(".")) return url;
+
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
+  const transformations = `f_auto,q_auto,c_limit,w_${width}`;
+
+  return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformations}/${encodeURIComponent(url)}`;
+};
+
 export const publicRoutes = new Elysia({
   prefix: "/public",
   detail: { tags: ["Public"] },
@@ -108,11 +119,16 @@ export const publicRoutes = new Elysia({
       }
 
       const user = result.rows[0];
+      const profilePhoto = user.foto_profil_url as string;
+      const optimizedPhoto = optimizeImageUrl(profilePhoto, 600);
+
       const html = await renderHtmlWithMeta({
-        url: `/${user.pageid}`,
+        url: `/${pageid}`,
         title: `${user.nama_lengkap}-Konsultan Emas Public Gold Indonesia`,
         description: `Amankan masa depan keluarga dengan tabungan emas bersama Public Gold Indonesia. Daftar gratis sekarang`,
-        image: user.foto_profil_url as string,
+        image: profilePhoto,
+        preloadImages: optimizedPhoto ? [optimizedPhoto] : [],
+        preloadApis: [`/public/pgbo/${pageid}`, "/public/gold-prices"],
       });
 
       set.headers["Content-Type"] = "text/html";

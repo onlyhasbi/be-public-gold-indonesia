@@ -11,9 +11,12 @@ export async function renderHtmlWithMeta(options: {
   description: string;
   image?: string;
   pageid?: string;
+  preloadImages?: string[];
+  preloadApis?: string[];
 }) {
   try {
     const frontendUrl = Bun.env.FRONTEND_URL || "https://mypublicgold.id";
+    const apiUrl = Bun.env.API_URL || "https://be-public-gold-indonesia.vercel.app";
     let html = cachedHtml;
     const now = Date.now();
 
@@ -35,7 +38,26 @@ export async function renderHtmlWithMeta(options: {
       }
     }
 
-    // 2. Prepare Meta Tags
+    // 2. Prepare Preload Tags
+    let preloadTags = "";
+
+    // Preload Images (LCP)
+    if (options.preloadImages) {
+      options.preloadImages.forEach((img) => {
+        preloadTags += `<link rel="preload" as="image" href="${img}" fetchpriority="high" />\n`;
+      });
+    }
+
+    // Preload APIs (To break critical chain)
+    if (options.preloadApis) {
+      options.preloadApis.forEach((apiPath) => {
+        // Construct full URL if relative
+        const fullApiUrl = apiPath.startsWith("http") ? apiPath : `${apiUrl}${apiPath}`;
+        preloadTags += `<link rel="preload" as="fetch" href="${fullApiUrl}" crossorigin="anonymous" />\n`;
+      });
+    }
+
+    // 3. Prepare Meta Tags
     const metaTags = `
     <title>${options.title}</title>
     <meta name="description" content="${options.description}" />
@@ -50,7 +72,7 @@ export async function renderHtmlWithMeta(options: {
     ${options.image ? `<meta name="twitter:image" content="${options.image}" />` : ""}
     `;
 
-    // 3. Inject into <head>
+    // 4. Inject into <head>
     html = html.replace(/<title>[\s\S]*?<\/title>/gi, "");
     html = html.replace(/<meta[^>]*name=["']description["'][^>]*>/gi, "");
     html = html.replace(/<meta[^>]*property=["']og:[^>]*>/gi, "");
@@ -58,7 +80,7 @@ export async function renderHtmlWithMeta(options: {
     html = html.replace(/<link[^>]*rel=["']canonical["'][^>]*>/gi, "");
     html = html.replace(
       "<head>",
-      `<head>\n<link rel="canonical" href="${frontendUrl}${options.url}" />\n${metaTags}`,
+      `<head>\n<link rel="canonical" href="${frontendUrl}${options.url}" />\n${preloadTags}${metaTags}`,
     );
 
     return html;
