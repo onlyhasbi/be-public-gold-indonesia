@@ -91,9 +91,10 @@ const api = new Elysia({ prefix: "/api" })
   .group("", (app) => app.use(publicRoutes))
   .get("/", ({ redirect }) => redirect("/api/docs"));
 
-// Root app to catch the absolute base path "/"
+// Root app to catch the absolute base path "/" and handle unprefixed public routes
 const app = new Elysia()
   .use(api)
+  .use(publicRoutes) // Handle /public/... without /api prefix
   .get("/", ({ redirect }) => redirect("/api/docs"));
 
 // For local development
