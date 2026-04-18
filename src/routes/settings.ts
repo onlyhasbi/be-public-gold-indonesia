@@ -113,6 +113,22 @@ export const settingsRoutes = new Elysia({
           return { success: false, message: "Format email tidak valid" };
         }
 
+        // Check if email already exists for another user
+        if (email) {
+          const emailCheck = await db.execute({
+            sql: `SELECT id FROM users WHERE email = ? AND ${user.id ? "id != ?" : "UPPER(pgcode) != UPPER(?)"}`,
+            args: [email, user.id || user.sub || ""],
+          });
+
+          if (emailCheck.rows.length > 0) {
+            set.status = 400;
+            return {
+              success: false,
+              message: "Email sudah digunakan oleh akun lain",
+            };
+          }
+        }
+
         // Validate URL formats if provided
         if (linkWa && !isValidUrl(linkWa)) {
           set.status = 400;
