@@ -22,7 +22,7 @@ const optimizeImageUrl = (
     return url;
 
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME || "dvq5fmqpp";
-  const transformations = `f_auto,q_auto,c_limit,w_${width}`;
+  const transformations = `f_auto,q_auto,w_${width},c_limit`;
 
   return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformations}/${encodeURIComponent(url)}`;
 };
@@ -36,6 +36,9 @@ export const publicRoutes = new Elysia({
   .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
   .get("/pgbo/:pageid", async ({ params, set }) => {
     try {
+      // Edge caching: 1 min fresh, 10 mins stale-while-revalidate
+      set.headers["Cache-Control"] =
+        "public, max-age=60, s-maxage=60, stale-while-revalidate=600";
       const pageid = params.pageid;
       const now = Date.now();
       const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
@@ -80,6 +83,9 @@ export const publicRoutes = new Elysia({
   })
   .get("/gold-prices", async ({ set }) => {
     try {
+      // Price data caching: 30s fresh, 2 mins stale
+      set.headers["Cache-Control"] =
+        "public, max-age=30, s-maxage=30, stale-while-revalidate=120";
       const data = await fetchGoldPrices();
 
       if (!data) {
@@ -129,6 +135,9 @@ export const publicRoutes = new Elysia({
   })
   .get("/render/:pageid", async ({ params, set }) => {
     try {
+      // SEO HTML caching: 5 mins fresh, 30 mins stale
+      set.headers["Cache-Control"] =
+        "public, max-age=300, s-maxage=300, stale-while-revalidate=1800";
       const pageid = params.pageid;
 
       const result = await db.execute({

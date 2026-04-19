@@ -1,4 +1,4 @@
-import { Elysia } from "elysia";
+import { Elysia, Context } from "elysia";
 import { cors } from "@elysiajs/cors";
 import { authRoutes } from "./routes/auth";
 import { adminRoutes } from "./routes/admin";
@@ -17,6 +17,17 @@ try {
 }
 
 const api = new Elysia({ prefix: "/api" })
+  .onAfterHandle(({ response, set }) => {
+    if (response && typeof response === "object" && !Array.isArray(response)) {
+      const stringified = JSON.stringify(response);
+      if (stringified.length > 1024) {
+        set.headers["Content-Encoding"] = "gzip";
+        return new Response(Bun.gzipSync(Buffer.from(stringified)), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+    }
+  })
   .use(
     cors({
       origin: (request) => {
@@ -89,13 +100,13 @@ const api = new Elysia({ prefix: "/api" })
   .group("", (app) => app.use(overviewRoutes))
   .group("", (app) => app.use(settingsRoutes))
   .group("", (app) => app.use(publicRoutes))
-  .get("/", ({ redirect }) => redirect("/api/docs"));
+  .get("/", (c: Context) => c.redirect("/api/docs"));
 
 // Root app to catch the absolute base path "/" and handle unprefixed public routes
 const app = new Elysia()
   .use(api)
   .use(publicRoutes) // Handle /public/... without /api prefix
-  .get("/", ({ redirect }) => redirect("/api/docs"));
+  .get("/", (c: Context) => c.redirect("/api/docs"));
 
 // For local development
 if (import.meta.main || !process.env.VERCEL) {
