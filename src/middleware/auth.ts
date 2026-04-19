@@ -42,7 +42,9 @@ export const authGuard = (app: Elysia) =>
     })
     .onBeforeHandle({ as: "global" }, ({ unauthorized, set, request }) => {
       if (unauthorized) {
-        console.warn(`[AUTH] Unauthorized access attempt to ${new URL(request.url).pathname}`);
+        console.warn(
+          `[AUTH] Unauthorized access attempt to ${new URL(request.url).pathname}`,
+        );
         set.status = 401;
         return { success: false, message: "Akses ditolak" };
       }
@@ -52,10 +54,14 @@ export const authGuard = (app: Elysia) =>
  * Guard specifically for admin-only routes.
  */
 export const adminGuard = (app: Elysia) =>
-  app.use(authGuard).onBeforeHandle({ as: "global" }, ({ user, set, request }) => {
-    if (!user || user.role !== "admin") {
-      console.warn(`[AUTH] Non-admin access rejected for ${user?.sub || "Unknown"} to ${new URL(request.url).pathname}`);
-      set.status = 401;
-      return { success: false, message: "Anda bukan admin" };
-    }
-  });
+  app
+    .use(authGuard)
+    .onBeforeHandle({ as: "global" }, ({ user, set, request }) => {
+      if (!user || user.role !== "admin") {
+        console.warn(
+          `[AUTH] Non-admin access rejected for ${user?.sub || "Unknown"} to ${new URL(request.url).pathname}`,
+        );
+        set.status = 401;
+        return { success: false, message: "Anda bukan admin" };
+      }
+    });
