@@ -1,6 +1,5 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/db";
-import { rateLimit } from "../middleware/rateLimit";
 import { authGuard } from "../middleware/auth";
 import { generateVCardFile } from "../utils/vcard_utils";
 import { escapeFts } from "../utils/sanitize";
@@ -11,8 +10,6 @@ export const overviewRoutes = new Elysia({
   detail: { tags: ["Overview"] },
 })
   .use(authGuard)
-  // Rate limit: 60 requests per minute
-  .use(rateLimit({ max: 60, windowMs: 60 * 1000 }))
   .get("/", async ({ query, user, set }) => {
     try {
       if (!user) {

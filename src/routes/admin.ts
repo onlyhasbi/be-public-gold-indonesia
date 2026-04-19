@@ -1,7 +1,6 @@
 import { Elysia, t } from "elysia";
 import { db } from "../db/db";
 import { adminGuard } from "../middleware/auth";
-import { rateLimit } from "../middleware/rateLimit";
 import { randomUUID } from "node:crypto";
 import {
   sanitizePGCode,
@@ -20,7 +19,30 @@ export const adminRoutes = new Elysia({
   detail: { tags: ["Admin"] },
 })
   .use(adminGuard)
-  .use(rateLimit({ max: 30, windowMs: 15 * 60 * 1000 }))
+  .get("/profile", async ({ user, set }) => {
+    try {
+      if (!user) {
+        set.status = 401;
+        return { success: false, message: "Akses ditolak" };
+      }
+
+      const adminId = user.id;
+      const res = await db.execute({
+        sql: `SELECT id, role, email, created_at FROM users WHERE id = ? AND role = 'admin'`,
+        args: [adminId ?? ""],
+      });
+
+      if (res.rows.length === 0) {
+        set.status = 404;
+        return { success: false, message: "Admin tidak ditemukan" };
+      }
+
+      return { success: true, data: res.rows[0] };
+    } catch (error) {
+      set.status = 500;
+      return { success: false, message: "Server error" };
+    }
+  })
   .get("/pgbo", async ({ query, set }) => {
     try {
       const search = query.search as string | undefined;

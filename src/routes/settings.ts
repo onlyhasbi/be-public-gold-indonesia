@@ -2,7 +2,6 @@ import { Elysia, t } from "elysia";
 import { db } from "../db/db";
 import { authGuard } from "../middleware/auth";
 import cloudinary from "../config/cloudinary";
-import { rateLimit } from "../middleware/rateLimit";
 import {
   sanitizeString,
   isValidEmail,
@@ -17,8 +16,6 @@ export const settingsRoutes = new Elysia({
   detail: { tags: ["Settings"] },
 })
   .use(authGuard)
-  // General rate limit: 30 requests per minute
-  .use(rateLimit({ max: 30, windowMs: 60 * 1000 }))
   .get("/", async ({ user, set }) => {
     try {
       if (!user) {

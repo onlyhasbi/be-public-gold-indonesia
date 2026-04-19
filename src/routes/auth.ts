@@ -1,11 +1,10 @@
-import { Elysia, t } from "elysia";
-import { db } from "../db/db";
 import { jwt } from "@elysiajs/jwt";
-import { randomUUID } from "node:crypto";
-import { rateLimit } from "../middleware/rateLimit";
-import { sanitizePGCode, sanitizePageId } from "../utils/sanitize";
 import type { InValue } from "@libsql/client";
+import { Elysia, t } from "elysia";
+import { randomUUID } from "node:crypto";
+import { db } from "../db/db";
 import type { UserRow } from "../types/db";
+import { sanitizePGCode, sanitizePageId } from "../utils/sanitize";
 
 export const authRoutes = new Elysia({
   prefix: "/auth",
@@ -18,7 +17,6 @@ export const authRoutes = new Elysia({
       exp: "7d", // Token expires in 7 days
     }),
   )
-  .use(rateLimit({ max: 10, windowMs: 15 * 60 * 1000 }))
   .get("/check-pageid", async ({ query, set }) => {
     try {
       const pageid = sanitizePageId(query.pageid || "");
@@ -145,7 +143,7 @@ export const authRoutes = new Elysia({
         katasandi: t.String(),
         secretCode: t.Optional(t.String()),
         nama_lengkap: t.Optional(t.String()),
-        no_telpon: t.String(),
+        no_telpon: t.Optional(t.String()),
       }),
     },
   )

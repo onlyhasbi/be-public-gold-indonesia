@@ -1,12 +1,11 @@
 import { Elysia, t } from "elysia";
+import { randomUUID } from "node:crypto";
 import { db } from "../db/db";
 import { rateLimit } from "../middleware/rateLimit";
-import { randomUUID } from "node:crypto";
 import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
-import type { UserRow } from "../types/db";
 
-import { renderHtmlWithMeta } from "../utils/seo";
 import { fetchGoldPrices } from "../services/goldPriceService";
+import { renderHtmlWithMeta } from "../utils/seo";
 
 // Helper to match frontend Cloudinary optimization logic
 const optimizeImageUrl = (
@@ -33,7 +32,6 @@ export const publicRoutes = new Elysia({
   prefix: "/public",
   detail: { tags: ["Public"] },
 })
-  .use(rateLimit({ max: 60, windowMs: 60 * 1000 })) // 60 requests per minute
   .get("/pgbo/:pageid", async ({ params, set }) => {
     try {
       // Edge caching: 1 min fresh, 10 mins stale-while-revalidate
@@ -147,7 +145,14 @@ export const publicRoutes = new Elysia({
 
       if (result.rows.length === 0) {
         set.status = 404;
-        return "Not Found";
+        const html = await renderHtmlWithMeta({
+          url: `/${pageid}`,
+          title: `Halaman Tidak Ditemukan | Public Gold Indonesia`,
+          description: `Mohon maaf, halaman konsultan yang Anda cari tidak ditemukan atau sudah tidak aktif.`,
+          preloadApis: [`/api/public/gold-prices`],
+        });
+        set.headers["Content-Type"] = "text/html";
+        return html;
       }
 
       const user = result.rows[0];
@@ -246,6 +251,7 @@ export const publicRoutes = new Elysia({
       return { success: false, message: msg };
     }
   })
+  .use(rateLimit({ max: 5, windowMs: 60 * 1000 }))
   .post(
     "/portal/verify",
     async ({ body, set }) => {
