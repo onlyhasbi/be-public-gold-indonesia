@@ -35,7 +35,7 @@ const api = new Elysia({ prefix: "/api" })
         if (!origin) return false;
 
         // Parse allowed origins from environment variable (comma-separated)
-        const corsOriginEnv = Bun.env.CORS_ORIGIN || "http://localhost:5173";
+        const corsOriginEnv = Bun.env.CORS_ORIGIN || "http://localhost:3000";
         const allowedOrigins = corsOriginEnv.split(",").map((o) => o.trim());
 
         // Also include FRONTEND_URL if set separately
