@@ -83,26 +83,34 @@ export const settingsRoutes = new Elysia({
         }
 
         // Sanitize all text inputs. If provided (even as ""), keep it so it can overwrite in DB.
-        const namaLengkap = body.nama_lengkap !== undefined
-          ? sanitizeString(body.nama_lengkap)
-          : null;
-        const namaPanggilan = body.nama_panggilan !== undefined
-          ? sanitizeString(body.nama_panggilan)
-          : null;
-        const email = body.email !== undefined ? sanitizeString(body.email) : null;
-        const noTelpon = body.no_telpon !== undefined ? sanitizeString(body.no_telpon) : null;
-        const linkWa = body.link_group_whatsapp !== undefined
-          ? sanitizeString(body.link_group_whatsapp)
-          : null;
-        const facebook = body.sosmed_facebook !== undefined
-          ? sanitizeString(body.sosmed_facebook)
-          : null;
-        const instagram = body.sosmed_instagram !== undefined
-          ? sanitizeString(body.sosmed_instagram)
-          : null;
-        const tiktok = body.sosmed_tiktok !== undefined
-          ? sanitizeString(body.sosmed_tiktok)
-          : null;
+        const namaLengkap =
+          body.nama_lengkap !== undefined
+            ? sanitizeString(body.nama_lengkap)
+            : null;
+        const namaPanggilan =
+          body.nama_panggilan !== undefined
+            ? sanitizeString(body.nama_panggilan)
+            : null;
+        const email =
+          body.email !== undefined ? sanitizeString(body.email) : null;
+        const noTelpon =
+          body.no_telpon !== undefined ? sanitizeString(body.no_telpon) : null;
+        const linkWa =
+          body.link_group_whatsapp !== undefined
+            ? sanitizeString(body.link_group_whatsapp)
+            : null;
+        const facebook =
+          body.sosmed_facebook !== undefined
+            ? sanitizeString(body.sosmed_facebook)
+            : null;
+        const instagram =
+          body.sosmed_instagram !== undefined
+            ? sanitizeString(body.sosmed_instagram)
+            : null;
+        const tiktok =
+          body.sosmed_tiktok !== undefined
+            ? sanitizeString(body.sosmed_tiktok)
+            : null;
 
         // Validate email format if provided
         if (email && !isValidEmail(email)) {
