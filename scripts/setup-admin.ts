@@ -24,7 +24,6 @@ async function setupAdmin() {
       args: [id, username, hashedPassword],
     });
 
-    console.log("✅ Super Admin berhasil ditambahkan ke database!");
   } catch (error: any) {
     if (error.message?.includes("UNIQUE constraint failed")) {
       console.error(

@@ -64,7 +64,6 @@ export const rotateSecretIfNeeded = async () => {
       const newCode = generateRandomCode(8);
       await updateSetting("portal_secret_code", newCode);
       await updateSetting("last_rotation_date", today);
-      console.log(`[Rotation] Secret code automatically rotated for ${today}`);
     }
   } catch (err) {
     console.error("[Rotation] Passive rotation check failed:", err);
