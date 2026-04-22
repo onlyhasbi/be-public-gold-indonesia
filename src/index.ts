@@ -110,7 +110,7 @@ const app = new Elysia()
 
 // For local development
 if (import.meta.main || !process.env.VERCEL) {
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 3001;
   app.listen(port);
   console.log(
     `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,

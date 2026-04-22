@@ -5,7 +5,6 @@ import { rateLimit } from "../middleware/rateLimit";
 import { getSetting, rotateSecretIfNeeded } from "../utils/settings";
 
 import { fetchGoldPrices } from "../services/goldPriceService";
-import { renderHtmlWithMeta } from "../utils/seo";
 
 // Helper to match frontend Cloudinary optimization logic
 const optimizeImageUrl = (
@@ -26,25 +25,13 @@ const optimizeImageUrl = (
   return `https://res.cloudinary.com/${cloudName}/image/fetch/${transformations}/${encodeURIComponent(url)}`;
 };
 
-const agentCache = new Map<string, { data: any; timestamp: number }>();
-
 export const publicRoutes = new Elysia({
   prefix: "/public",
   detail: { tags: ["Public"] },
 })
   .get("/pgbo/:pageid", async ({ params, set }) => {
     try {
-      // Edge caching: 1 min fresh, 10 mins stale-while-revalidate
-      set.headers["Cache-Control"] =
-        "public, max-age=60, s-maxage=60, stale-while-revalidate=600";
       const pageid = params.pageid;
-      const now = Date.now();
-      const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
-
-      const cached = agentCache.get(pageid);
-      if (cached && now - cached.timestamp < CACHE_TTL) {
-        return cached.data;
-      }
 
       const result = await db.execute({
         sql: `
@@ -64,26 +51,34 @@ export const publicRoutes = new Elysia({
         return { success: false, message: "Page ID tidak ditemukan" };
       }
 
-      const response = {
+      return {
         success: true,
         data: result.rows[0],
       };
-
-      // Update Cache
-      agentCache.set(pageid, { data: response, timestamp: now });
-
-      return response;
     } catch (error) {
       console.error("[PGBO Endpoint Error]:", error);
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };
     }
   })
+  .get("/agents", async ({ set }) => {
+    try {
+      const result = await db.execute({
+        sql: `SELECT pageid FROM users WHERE role = 'pgbo' AND is_active = 1`,
+        args: [],
+      });
+
+      return {
+        success: true,
+        data: result.rows,
+      };
+    } catch (error) {
+      set.status = 500;
+      return { success: false, message: "Terjadi kesalahan pada server" };
+    }
+  })
   .get("/gold-prices", async ({ set }) => {
     try {
-      // Price data caching: 30s fresh, 2 mins stale
-      set.headers["Cache-Control"] =
-        "public, max-age=30, s-maxage=30, stale-while-revalidate=120";
       const data = await fetchGoldPrices();
 
       if (!data) {
@@ -98,81 +93,6 @@ export const publicRoutes = new Elysia({
     } catch (error) {
       set.status = 500;
       return { success: false, message: "Terjadi kesalahan pada server" };
-    }
-  })
-  .get("/sitemap.xml", async ({ set }) => {
-    try {
-      const result = await db.execute({
-        sql: `SELECT pageid FROM users WHERE role = 'pgbo' AND is_active = 1`,
-        args: [],
-      });
-
-      const pages = result.rows;
-      const baseUrl = Bun.env.FRONTEND_URL || "https://mypublicgold.id";
-
-      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-      xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
-
-      pages.forEach((row) => {
-        const u = row as unknown as { pageid: string };
-        xml += `  <url>\n`;
-        xml += `    <loc>${baseUrl}/${u.pageid}</loc>\n`;
-        xml += `    <changefreq>weekly</changefreq>\n`;
-        xml += `    <priority>0.7</priority>\n`;
-        xml += `  </url>\n`;
-      });
-
-      xml += `</urlset>`;
-
-      set.headers["Content-Type"] = "application/xml";
-      return xml;
-    } catch (error) {
-      set.status = 500;
-      return "Error generating sitemap";
-    }
-  })
-  .get("/render/:pageid", async ({ params, set }) => {
-    try {
-      // SEO HTML caching: 5 mins fresh, 30 mins stale
-      set.headers["Cache-Control"] =
-        "public, max-age=300, s-maxage=300, stale-while-revalidate=1800";
-      const pageid = params.pageid;
-
-      const result = await db.execute({
-        sql: `SELECT nama_lengkap, pageid, foto_profil_url FROM users WHERE pageid = ? AND is_active = 1`,
-        args: [pageid],
-      });
-
-      if (result.rows.length === 0) {
-        set.status = 404;
-        const html = await renderHtmlWithMeta({
-          url: `/${pageid}`,
-          title: `Halaman Tidak Ditemukan | Public Gold Indonesia`,
-          description: `Mohon maaf, halaman konsultan yang Anda cari tidak ditemukan atau sudah tidak aktif.`,
-          preloadApis: [`/api/public/gold-prices`],
-        });
-        set.headers["Content-Type"] = "text/html";
-        return html;
-      }
-
-      const user = result.rows[0];
-      const profilePhoto = user.foto_profil_url as string;
-      const optimizedPhoto = optimizeImageUrl(profilePhoto, 400);
-
-      const html = await renderHtmlWithMeta({
-        url: `/${pageid}`,
-        title: `${user.nama_lengkap}-Konsultan Emas Public Gold Indonesia`,
-        description: `Amankan masa depan keluarga dengan tabungan emas bersama Public Gold Indonesia. Daftar gratis sekarang`,
-        image: profilePhoto,
-        preloadImages: optimizedPhoto ? [optimizedPhoto] : [],
-        preloadApis: [`/api/public/pgbo/${pageid}`, "/api/public/gold-prices"],
-      });
-
-      set.headers["Content-Type"] = "text/html";
-      return html;
-    } catch (error) {
-      set.status = 500;
-      return "Internal Server Error";
     }
   })
   .get("/random", async ({ set }) => {
