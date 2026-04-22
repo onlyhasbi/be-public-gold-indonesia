@@ -23,7 +23,6 @@ async function setupAdmin() {
       sql: `INSERT INTO admins (id, username, katasandi_hash) VALUES (?, ?, ?)`,
       args: [id, username, hashedPassword],
     });
-
   } catch (error: any) {
     if (error.message?.includes("UNIQUE constraint failed")) {
       console.error(
