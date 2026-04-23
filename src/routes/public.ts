@@ -86,6 +86,9 @@ export const publicRoutes = new Elysia({
         return { success: false, message: "Gagal mengambil data harga emas" };
       }
 
+      // Cache gold prices for 2 minutes at edge
+      set.headers["Cache-Control"] = "public, max-age=120, s-maxage=120";
+
       return {
         success: true,
         data,
