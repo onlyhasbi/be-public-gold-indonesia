@@ -9,7 +9,7 @@ import { setupDatabase } from "./db/db";
 import { securityHeaders } from "./middleware/securityHeaders";
 import { swagger } from "@elysiajs/swagger";
 
-// Initialize database with basic error handling to prevent startup crashes
+// Initialize database
 try {
   await setupDatabase();
 } catch (error) {
@@ -29,43 +29,6 @@ const api = new Elysia({ prefix: "/api" })
     }
   })
   .use(
-    cors({
-      origin: (request) => {
-        const origin = request.headers.get("origin");
-        if (!origin) return false;
-
-        // Parse allowed origins from environment variable (comma-separated)
-        const corsOriginEnv = Bun.env.CORS_ORIGIN || "http://localhost:3000";
-        const allowedOrigins = corsOriginEnv.split(",").map((o) => o.trim());
-
-        // Also include FRONTEND_URL if set separately
-        const frontendUrl = Bun.env.FRONTEND_URL;
-        if (frontendUrl && !allowedOrigins.includes(frontendUrl)) {
-          allowedOrigins.push(frontendUrl);
-          // Automatically add www version for production convenience
-          if (
-            frontendUrl.startsWith("https://") &&
-            !frontendUrl.includes("www.")
-          ) {
-            allowedOrigins.push(
-              frontendUrl.replace("https://", "https://www."),
-            );
-          }
-        }
-
-        // Direct match
-        if (allowedOrigins.includes(origin)) return true;
-
-        // Dynamic allowance for Vercel preview deployments
-        if (/^https:\/\/.*-onlyhasbi\.vercel\.app$/.test(origin)) return true;
-
-        return false;
-      },
-      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization"],
-    }),
-  )
-  .use(
     swagger({
       documentation: {
         info: {
@@ -77,11 +40,14 @@ const api = new Elysia({ prefix: "/api" })
       path: "/docs",
     }),
   )
-  // Security headers (XSS, clickjacking, MIME sniffing protection)
   .use(securityHeaders)
-  // Global error handler — never leak internal errors to clients
   .onError(({ code, set, error }) => {
     console.error(`Error [${code}]:`, error);
+
+    // Ensure CORS headers are present even on error responses
+    set.headers["Access-Control-Allow-Origin"] = "*";
+    set.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+    set.headers["Access-Control-Allow-Headers"] = "*";
 
     if (code === "VALIDATION") {
       set.status = 400;
@@ -102,19 +68,27 @@ const api = new Elysia({ prefix: "/api" })
   .group("", (app) => app.use(publicRoutes))
   .get("/", (c: Context) => c.redirect("/api/docs"));
 
-// Root app to catch the absolute base path "/" and handle unprefixed public routes
 const app = new Elysia()
+  .use(
+    cors({
+      origin: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "Accept"],
+      credentials: true,
+    }),
+  )
+  .onBeforeHandle(({ set }) => {
+    // Explicitly handle OPTIONS preflight if needed
+    set.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+  })
   .use(api)
-  .use(publicRoutes) // Handle /public/... without /api prefix
+  .use(publicRoutes)
   .get("/", (c: Context) => c.redirect("/api/docs"));
 
-// For local development
 if (import.meta.main || !process.env.VERCEL) {
   const port = process.env.PORT || 3001;
   app.listen(port);
-  console.log(
-    `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
-  );
+  console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
 }
 
 export default app;

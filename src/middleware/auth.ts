@@ -3,7 +3,7 @@ import { jwt } from "@elysiajs/jwt";
 
 const jwtPlugin = jwt({
   name: "jwt",
-  secret: Bun.env.JWT_SECRET || "REDACTED_JWT_SECRET",
+  secret: Bun.env.JWT_SECRET || "",
 });
 
 interface JWTPayload {
@@ -34,7 +34,6 @@ export const authGuard = (app: Elysia) =>
         return { user: null as JWTPayload | null, unauthorized: true };
       }
 
-      // Explicitly return auth context
       return {
         user: payload as unknown as JWTPayload,
         unauthorized: false,
