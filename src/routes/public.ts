@@ -64,13 +64,17 @@ export const publicRoutes = new Elysia({
   .get("/agents", async ({ set }) => {
     try {
       const result = await db.execute({
-        sql: `SELECT pageid FROM users WHERE role = 'pgbo' AND is_active = 1`,
+        sql: `SELECT pageid, nama_panggilan, foto_profil_url FROM users WHERE role = 'pgbo' AND is_active = 1`,
         args: [],
       });
 
       return {
         success: true,
-        data: result.rows,
+        data: result.rows.map(row => ({
+          pageid: row.pageid,
+          nama_panggilan: row.nama_panggilan,
+          foto_profil_url: row.foto_profil_url
+        })),
       };
     } catch (error) {
       set.status = 500;
