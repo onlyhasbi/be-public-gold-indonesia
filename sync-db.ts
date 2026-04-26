@@ -1,7 +1,7 @@
 import { createClient } from "@libsql/client";
 
 async function sync() {
-  const onlineUrl = process.env.TURSO_DATABASE_URL_ONLINE || '';
+  const onlineUrl = process.env.TURSO_DATABASE_URL_ONLINE || "";
   const onlineToken = process.env.TURSO_AUTH_TOKEN;
   const localUrl = "file:local.db";
 
@@ -23,12 +23,12 @@ async function sync() {
 
   for (const table of tables) {
     console.log(`\n⏳ Sinkronisasi tabel: ${table}...`);
-    
+
     try {
       // 1. Ambil data dari online
       const onlineRes = await onlineDb.execute(`SELECT * FROM ${table}`);
       const rows = onlineRes.rows;
-      
+
       if (rows.length === 0) {
         console.log(`ℹ️ Tabel ${table} di online kosong.`);
         continue;
@@ -43,13 +43,18 @@ async function sync() {
       const sql = `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${placeholders})`;
 
       for (const row of rows) {
-        const values = columns.map(col => row[col]);
+        const values = columns.map((col) => row[col]);
         await localDb.execute({ sql, args: values as any });
       }
 
-      console.log(`✅ Berhasil menyalin ${rows.length} baris ke tabel ${table}.`);
+      console.log(
+        `✅ Berhasil menyalin ${rows.length} baris ke tabel ${table}.`,
+      );
     } catch (error: any) {
-      console.error(`❌ Gagal sinkronisasi tabel ${table}:`, error?.message || error);
+      console.error(
+        `❌ Gagal sinkronisasi tabel ${table}:`,
+        error?.message || error,
+      );
     }
   }
 

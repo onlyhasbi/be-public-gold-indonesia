@@ -70,10 +70,10 @@ export const publicRoutes = new Elysia({
 
       return {
         success: true,
-        data: result.rows.map(row => ({
+        data: result.rows.map((row) => ({
           pageid: row.pageid,
           nama_panggilan: row.nama_panggilan,
-          foto_profil_url: row.foto_profil_url
+          foto_profil_url: row.foto_profil_url,
         })),
       };
     } catch (error) {
