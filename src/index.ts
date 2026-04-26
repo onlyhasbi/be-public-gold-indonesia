@@ -46,7 +46,8 @@ const api = new Elysia({ prefix: "/api" })
 
     // Ensure CORS headers are present even on error responses
     set.headers["Access-Control-Allow-Origin"] = "*";
-    set.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+    set.headers["Access-Control-Allow-Methods"] =
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS";
     set.headers["Access-Control-Allow-Headers"] = "*";
 
     if (code === "VALIDATION") {
@@ -79,7 +80,8 @@ const app = new Elysia()
   )
   .onBeforeHandle(({ set }) => {
     // Explicitly handle OPTIONS preflight if needed
-    set.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS";
+    set.headers["Access-Control-Allow-Methods"] =
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS";
   })
   .use(api)
   .use(publicRoutes)
@@ -88,7 +90,9 @@ const app = new Elysia()
 if (import.meta.main || !process.env.VERCEL) {
   const port = process.env.PORT || 3001;
   app.listen(port);
-  console.log(`🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`);
+  console.log(
+    `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`,
+  );
 }
 
 export default app;
