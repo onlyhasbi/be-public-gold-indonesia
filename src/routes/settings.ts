@@ -92,7 +92,9 @@ export const settingsRoutes = new Elysia({
             ? sanitizeString(body.nama_panggilan)
             : null;
         const email =
-          body.email !== undefined ? sanitizeString(body.email) : null;
+          body.email !== undefined
+            ? sanitizeString(body.email) || null
+            : null;
         const noTelpon =
           body.no_telpon !== undefined ? sanitizeString(body.no_telpon) : null;
         const linkWa =
